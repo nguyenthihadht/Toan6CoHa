@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "Quiz": {
+      "title": "Quiz",
+      "description": "Đề thi ôn luyện toán học",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "chapterId": { "type": "string" },
+        "lessonId": { "type": "string" },
+        "questionCount": { "type": "number" },
+        "schoolName": { "type": "string" },
+        "examDate": { "type": "string" },
+        "timeLimit": { "type": "number" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" }
+      },
+      "required": ["id", "title", "createdAt", "createdBy", "chapterId", "lessonId", "questionCount"]
+    },
+    "StudentSubmission": {
+      "title": "StudentSubmission",
+      "description": "Kết quả làm bài thi của học sinh",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "quizId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentClass": { "type": "string" },
+        "submittedAt": { "type": "string" },
+        "score": { "type": "number" },
+        "isGraded": { "type": "boolean" },
+        "attempt": { "type": "number" }
+      },
+      "required": ["id", "quizId", "studentName", "studentClass", "submittedAt", "score", "isGraded"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Học sinh trong lớp học",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "class": { "type": "string" }
+      },
+      "required": ["id", "name", "class"]
+    },
+    "UnlockRequest": {
+      "title": "UnlockRequest",
+      "description": "Yêu cầu mở khóa lượt thi lần 2 của học sinh",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentClass": { "type": "string" },
+        "quizId": { "type": "string" },
+        "quizTitle": { "type": "string" },
+        "requestedAt": { "type": "string" },
+        "unlocked": { "type": "boolean" }
+      },
+      "required": ["id", "studentId", "studentName", "studentClass", "quizId", "quizTitle", "requestedAt", "unlocked"]
+    },
+    "CurriculumChapter": {
+      "title": "CurriculumChapter",
+      "description": "Chương trình học và các bài học",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["id", "title", "order"]
+    },
+    "SystemSettings": {
+      "title": "SystemSettings",
+      "description": "Cấu hình chung hệ thống",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "adminPassword": { "type": "string" }
+      },
+      "required": ["id", "adminPassword"]
+    }
+  },
+  "firestore": {
+    "/quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "Bộ sưu tập đề thi ôn tập"
+    },
+    "/submissions/{submissionId}": {
+      "schema": "StudentSubmission",
+      "description": "Bộ sưu tập kết quả bài thi"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Danh sách học sinh"
+    },
+    "/unlockRequests/{requestId}": {
+      "schema": "UnlockRequest",
+      "description": "Yêu cầu thi lại"
+    },
+    "/curriculum/{chapterId}": {
+      "schema": "CurriculumChapter",
+      "description": "Cấu trúc chương trình học"
+    },
+    "/settings/{settingId}": {
+      "schema": "SystemSettings",
+      "description": "Cấu hình mật khẩu và thông số"
+    }
+  }
+}

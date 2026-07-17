@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if ID has correct characters and length
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Collection: quizzes
+    match /quizzes/{quizId} {
+      allow read: if true; // Publicly readable so students can take tests
+      allow write: if true; // Teachers can manage tests (or we can secure further if we had authentication)
+    }
+
+    // Collection: submissions
+    match /submissions/{submissionId} {
+      allow read: if true; // Both students and teachers can read results
+      allow write: if true; // Students can submit answers, teachers can grade/update feedback
+    }
+
+    // Collection: students
+    match /students/{studentId} {
+      allow read: if true; // Readable for login validation and class lists
+      allow write: if true; // Teachers can manage student lists
+    }
+
+    // Collection: unlockRequests
+    match /unlockRequests/{requestId} {
+      allow read: if true;
+      allow write: if true; // Students request, teachers unlock
+    }
+
+    // Collection: curriculum
+    match /curriculum/{chapterId} {
+      allow read: if true; // Open read for program of study
+      allow write: if true; // Managed by teacher admin
+    }
+
+    // Collection: settings
+    match /settings/{settingId} {
+      allow read: if true; // Admin password settings
+      allow write: if true;
+    }
+  }
+}

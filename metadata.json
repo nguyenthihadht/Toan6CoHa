@@ -1,0 +1,6 @@
+{
+  "name": "AI Math Grade 6 - Kết nối tri thức",
+  "description": "Hệ thống AI hỗ trợ giáo viên tạo đề thi, ôn luyện Toán lớp 6 theo bộ sách Kết nối tri thức với cuộc sống.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
