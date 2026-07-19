@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Chapter, Lesson, INITIAL_CURRICULUM } from "../data/curriculum";
-import { Quiz, Question, QuestionType, Difficulty } from "../types";
+import { Quiz, Question, QuestionType, Difficulty, Student } from "../types";
 import { 
   Sparkles, 
   BookOpen, 
@@ -16,12 +16,18 @@ import {
   FileText,
   AlertTriangle,
   ChevronDown,
-  ArrowRight
+  ArrowRight,
+  Users,
+  Plus
 } from "lucide-react";
+import { renderMath } from "../utils/mathFormatter";
 
 interface GeneratorProps {
   curriculum: Chapter[];
+  students?: Student[];
   onSaveQuiz: (newQuiz: Quiz) => void;
+  onUpdateQuiz?: (updatedQuiz: Quiz) => void;
+  onDeleteQuiz?: (id: string) => void;
   onNavigate: (tab: string) => void;
   onSelectQuiz: (quiz: Quiz) => void;
 }
@@ -345,7 +351,14 @@ function generateLocalBackupQuestions(
   return questions;
 }
 
-export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelectQuiz }: GeneratorProps) {
+export default function Generator({ curriculum, students, onSaveQuiz, onUpdateQuiz, onDeleteQuiz, onNavigate, onSelectQuiz }: GeneratorProps) {
+  // Keep track of the auto-saved quiz
+  const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+
+  // Assignment state
+  const [assignedClasses, setAssignedClasses] = useState<string[]>([]);
+  const [customClassName, setCustomClassName] = useState<string>("");
+
   // Input form state
   const [selectedChapterId, setSelectedChapterId] = useState<string>(curriculum[0]?.id || "");
   const [selectedLessonId, setSelectedLessonId] = useState<string>(curriculum[0]?.lessons[0]?.id || "");
@@ -383,16 +396,28 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
     }
   }, [selectedChapterId]);
 
+  // Sync when activeQuiz changes
+  useEffect(() => {
+    if (activeQuiz) {
+      setQuizTitle(activeQuiz.title || "");
+      setSchoolName(activeQuiz.schoolName || "Trường THCS Lê Quý Đôn");
+      setExamDate(activeQuiz.examDate || new Date().toISOString().substring(0, 10));
+      setAssignedClasses(activeQuiz.assignedClasses || []);
+    }
+  }, [activeQuiz]);
+
   // Set default title when chapter or lesson changes
   useEffect(() => {
-    const chap = curriculum.find(c => c.id === selectedChapterId);
-    const les = chap?.lessons.find(l => l.id === selectedLessonId);
-    if (les) {
-      setQuizTitle(`Bài kiểm tra ôn luyện: ${les.name}`);
-    } else {
-      setQuizTitle("Đề ôn tập Toán học Lớp 6");
+    if (!activeQuiz) {
+      const chap = curriculum.find(c => c.id === selectedChapterId);
+      const les = chap?.lessons.find(l => l.id === selectedLessonId);
+      if (les) {
+        setQuizTitle(`Bài kiểm tra ôn luyện: ${les.name}`);
+      } else {
+        setQuizTitle("Đề ôn tập Toán học Lớp 6");
+      }
     }
-  }, [selectedChapterId, selectedLessonId]);
+  }, [selectedChapterId, selectedLessonId, activeQuiz]);
 
   // Toggle difficulties
   const handleDifficultyToggle = (diff: Difficulty) => {
@@ -419,6 +444,7 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
   // Run AI Question Generator Call
   const handleGenerate = async () => {
     setIsGenerating(true);
+    setAssignedClasses([]);
     setErrorMsg(null);
     setGenerationProgress(10);
     setGenerationPhase("Đang phân tích khung chương trình SGK lớp 6...");
@@ -477,6 +503,27 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
       setGeneratedQuestions(data.questions);
       setGenerationProgress(100);
       setGenerationPhase("Bộ đề đã sẵn sàng!");
+
+      // Auto-save generated quiz immediately so it is never lost
+      const newQuizId = "quiz-" + Date.now();
+      const newQuiz: Quiz = {
+        id: newQuizId,
+        title: quizTitle || "Đề kiểm tra Toán lớp 6",
+        createdAt: new Date().toISOString(),
+        createdBy: "Giáo viên",
+        chapterId: selectedChapterId,
+        lessonId: selectedLessonId,
+        difficultyLevels: selectedDifficulty,
+        questionCount: data.questions.length,
+        types: Array.from(new Set(data.questions.map(q => q.type))),
+        questions: data.questions,
+        schoolName: schoolName,
+        examDate: examDate,
+      };
+      onSaveQuiz(newQuiz);
+      setActiveQuiz(newQuiz);
+      onSelectQuiz(newQuiz);
+
       setTimeout(() => {
         setIsGenerating(false);
       }, 600);
@@ -502,6 +549,26 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
       setGenerationProgress(100);
       setGenerationPhase("Đã tạo đề hoàn tất bằng thuật toán dự phòng!");
       
+      // Auto-save fallback quiz immediately so it is never lost
+      const newQuizId = "quiz-" + Date.now();
+      const newQuiz: Quiz = {
+        id: newQuizId,
+        title: quizTitle || "Đề kiểm tra Toán lớp 6",
+        createdAt: new Date().toISOString(),
+        createdBy: "Giáo viên",
+        chapterId: selectedChapterId,
+        lessonId: selectedLessonId,
+        difficultyLevels: selectedDifficulty,
+        questionCount: fallbackQuestions.length,
+        types: Array.from(new Set(fallbackQuestions.map(q => q.type))),
+        questions: fallbackQuestions,
+        schoolName: schoolName,
+        examDate: examDate,
+      };
+      onSaveQuiz(newQuiz);
+      setActiveQuiz(newQuiz);
+      onSelectQuiz(newQuiz);
+
       // Set a friendly, clear, high-contrast pedagogical explanation
       setErrorMsg(
         "Hệ thống tạo đề AI hiện đang quá tải hoặc gặp gián đoạn kết nối. " +
@@ -520,39 +587,117 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
   };
 
   const saveEdit = (id: string) => {
-    setGeneratedQuestions(prev => prev.map(q => q.id === id ? { ...q, ...editFields } as Question : q));
+    const updatedQuestions = generatedQuestions.map(q => q.id === id ? { ...q, ...editFields } as Question : q);
+    setGeneratedQuestions(updatedQuestions);
     setEditQuestionId(null);
+
+    if (activeQuiz && onUpdateQuiz) {
+      const updatedQuiz = {
+        ...activeQuiz,
+        questions: updatedQuestions,
+        questionCount: updatedQuestions.length,
+        types: Array.from(new Set(updatedQuestions.map(q => q.type))),
+      };
+      setActiveQuiz(updatedQuiz);
+      onUpdateQuiz(updatedQuiz);
+    }
   };
 
   const deleteQuestion = (id: string) => {
     if (confirm("Bạn có chắc chắn muốn xóa câu hỏi này khỏi bộ đề?")) {
-      setGeneratedQuestions(prev => prev.filter(q => q.id !== id));
+      const updatedQuestions = generatedQuestions.filter(q => q.id !== id);
+      setGeneratedQuestions(updatedQuestions);
+
+      if (activeQuiz && onUpdateQuiz) {
+        const updatedQuiz = {
+          ...activeQuiz,
+          questions: updatedQuestions,
+          questionCount: updatedQuestions.length,
+          types: Array.from(new Set(updatedQuestions.map(q => q.type))),
+        };
+        setActiveQuiz(updatedQuiz);
+        onUpdateQuiz(updatedQuiz);
+      }
+    }
+  };
+
+  // Discard auto-saved quiz
+  const handleDiscardQuiz = () => {
+    if (activeQuiz && onDeleteQuiz) {
+      onDeleteQuiz(activeQuiz.id);
+    }
+    setGeneratedQuestions([]);
+    setActiveQuiz(null);
+  };
+
+  // Title, school, and date real-time changes
+  const handleTitleChange = (val: string) => {
+    setQuizTitle(val);
+    if (activeQuiz && onUpdateQuiz) {
+      const updated = { ...activeQuiz, title: val };
+      setActiveQuiz(updated);
+      onUpdateQuiz(updated);
+    }
+  };
+
+  const handleSchoolNameChange = (val: string) => {
+    setSchoolName(val);
+    if (activeQuiz && onUpdateQuiz) {
+      const updated = { ...activeQuiz, schoolName: val };
+      setActiveQuiz(updated);
+      onUpdateQuiz(updated);
+    }
+  };
+
+  const handleExamDateChange = (val: string) => {
+    setExamDate(val);
+    if (activeQuiz && onUpdateQuiz) {
+      const updated = { ...activeQuiz, examDate: val };
+      setActiveQuiz(updated);
+      onUpdateQuiz(updated);
+    }
+  };
+
+  const handleToggleClass = (cls: string) => {
+    let nextClasses;
+    if (assignedClasses.includes(cls)) {
+      nextClasses = assignedClasses.filter(c => c !== cls);
+    } else {
+      nextClasses = [...assignedClasses, cls];
+    }
+    setAssignedClasses(nextClasses);
+    if (activeQuiz && onUpdateQuiz) {
+      const updated = { ...activeQuiz, assignedClasses: nextClasses.length > 0 ? nextClasses : undefined };
+      setActiveQuiz(updated);
+      onUpdateQuiz(updated);
+    }
+  };
+
+  const handleAddCustomClass = () => {
+    const trimmed = customClassName.trim().toUpperCase();
+    if (!trimmed) return;
+    let nextClasses = assignedClasses;
+    if (!assignedClasses.includes(trimmed)) {
+      nextClasses = [...assignedClasses, trimmed];
+      setAssignedClasses(nextClasses);
+    }
+    setCustomClassName("");
+    if (activeQuiz && onUpdateQuiz) {
+      const updated = { ...activeQuiz, assignedClasses: nextClasses };
+      setActiveQuiz(updated);
+      onUpdateQuiz(updated);
     }
   };
 
   // Commit and Save Quiz
   const handleSaveQuiz = () => {
-    if (generatedQuestions.length === 0) return;
-
-    const newQuiz: Quiz = {
-      id: "quiz-" + Date.now(),
-      title: quizTitle || "Đề kiểm tra Toán lớp 6",
-      createdAt: new Date().toISOString(),
-      createdBy: "Giáo viên",
-      chapterId: selectedChapterId,
-      lessonId: selectedLessonId,
-      difficultyLevels: selectedDifficulty,
-      questionCount: generatedQuestions.length,
-      types: Array.from(new Set(generatedQuestions.map(q => q.type))),
-      questions: generatedQuestions,
-      schoolName: schoolName,
-      examDate: examDate,
-    };
-
-    onSaveQuiz(newQuiz);
-    onSelectQuiz(newQuiz);
+    if (activeQuiz) {
+      onSelectQuiz(activeQuiz);
+    }
     onNavigate("bank");
   };
+
+  const availableClasses = Array.from(new Set((students || []).map(s => s.class))).filter(Boolean).sort();
 
   return (
     <div className="space-y-6">
@@ -769,22 +914,22 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
             <div className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
               <div>
-                <p className="text-sm font-bold text-emerald-800 dark:text-emerald-400">Đã tạo đề thi thành công bằng AI!</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Tổng số câu hỏi được sinh: {generatedQuestions.length} câu. Bạn có thể chỉnh sửa lại nội dung trước khi lưu trữ.</p>
+                <p className="text-sm font-bold text-emerald-800 dark:text-emerald-400">Đã tự động lưu đề thi vào ngân hàng đề!</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Tổng số câu hỏi được sinh: {generatedQuestions.length} câu. Bạn có thể chỉnh sửa đề thi bên dưới, hệ thống sẽ tự động đồng bộ hóa.</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setGeneratedQuestions([])}
-                className="rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400"
+                onClick={handleDiscardQuiz}
+                className="rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 px-4 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 transition-all"
               >
-                Huỷ / Tạo đề khác
+                Hủy / Xóa đề này
               </button>
               <button
                 onClick={handleSaveQuiz}
-                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-5 py-2"
+                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-5 py-2 transition-all shadow-sm"
               >
-                Lưu vào Ngân Hàng Đề
+                Xem trong Ngân Hàng Đề
               </button>
             </div>
           </div>
@@ -910,7 +1055,7 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
                           /* View Mode */
                           <div className="space-y-2">
                             <p className="text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed whitespace-pre-wrap">
-                              {q.prompt}
+                              {renderMath(q.prompt)}
                             </p>
 
                             {/* Multiple choice options */}
@@ -918,7 +1063,7 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
                                 {q.options.map((opt, oIdx) => (
                                   <div key={oIdx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg p-2 text-xs">
-                                    {opt}
+                                    {renderMath(opt)}
                                   </div>
                                 ))}
                               </div>
@@ -929,7 +1074,7 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
                               <div className="space-y-1.5 pt-1">
                                 {q.trueFalseStatements.map((statement) => (
                                   <div key={statement.id} className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg p-2 text-xs">
-                                    <span>{statement.statement}</span>
+                                    <span>{renderMath(statement.statement)}</span>
                                     <span className={`font-semibold px-1.5 py-0.5 rounded text-2xs ${statement.answer ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
                                       {statement.answer ? "Đúng" : "Sai"}
                                     </span>
@@ -945,7 +1090,7 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
                                   <div className="text-2xs font-bold text-slate-400 uppercase">Cột A</div>
                                   {q.matchingPairs.map((pair) => (
                                     <div key={pair.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg p-2 text-2xs">
-                                      {pair.left}
+                                      {renderMath(pair.left)}
                                     </div>
                                   ))}
                                 </div>
@@ -953,7 +1098,7 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
                                   <div className="text-2xs font-bold text-slate-400 uppercase">Cột B (Cần ghép)</div>
                                   {q.matchingPairs.map((pair) => (
                                     <div key={pair.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg p-2 text-2xs">
-                                      {pair.right}
+                                      {renderMath(pair.right)}
                                     </div>
                                   ))}
                                 </div>
@@ -961,12 +1106,12 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
                             )}
 
                             <div className="mt-3 pt-3 border-t border-dashed border-slate-100 dark:border-slate-800 flex flex-wrap gap-x-4 gap-y-1.5 text-2xs text-slate-500 leading-relaxed">
-                              <span><strong>ĐS chuẩn:</strong> <span className="text-slate-800 dark:text-slate-200 font-semibold">{q.correctAnswer}</span></span>
+                              <span><strong>ĐS chuẩn:</strong> <span className="text-slate-800 dark:text-slate-200 font-semibold">{renderMath(q.correctAnswer)}</span></span>
                               <span>• <strong>Năng lực:</strong> <span className="text-slate-700 dark:text-slate-300 font-semibold">{q.competency}</span></span>
                             </div>
 
                             <div className="bg-slate-100/50 dark:bg-slate-950/40 rounded-lg p-3 mt-2 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                              <strong>Lời giải:</strong> {q.solution}
+                              <strong>Lời giải:</strong> {renderMath(q.solution)}
                             </div>
                           </div>
                         )}
@@ -990,7 +1135,7 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
                     <input
                       type="text"
                       value={quizTitle}
-                      onChange={(e) => setQuizTitle(e.target.value)}
+                      onChange={(e) => handleTitleChange(e.target.value)}
                       className="w-full text-xs p-2 border rounded-lg focus:outline-none dark:bg-slate-950 font-bold"
                     />
                   </div>
@@ -1000,7 +1145,7 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
                     <input
                       type="text"
                       value={schoolName}
-                      onChange={(e) => setSchoolName(e.target.value)}
+                      onChange={(e) => handleSchoolNameChange(e.target.value)}
                       className="w-full text-xs p-2 border rounded-lg focus:outline-none dark:bg-slate-950"
                     />
                   </div>
@@ -1010,7 +1155,7 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
                     <input
                       type="date"
                       value={examDate}
-                      onChange={(e) => setExamDate(e.target.value)}
+                      onChange={(e) => handleExamDateChange(e.target.value)}
                       className="w-full text-xs p-2 border rounded-lg focus:outline-none dark:bg-slate-950"
                     />
                   </div>
@@ -1023,6 +1168,76 @@ export default function Generator({ curriculum, onSaveQuiz, onNavigate, onSelect
                   >
                     <CheckCircle className="h-4 w-4" /> Hoàn thành & Lưu đề
                   </button>
+                </div>
+              </div>
+
+              {/* Card for Class Assignment */}
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-sm space-y-4">
+                <h3 className="font-display font-bold text-slate-800 dark:text-slate-200 text-sm border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-1.5">
+                  <Users className="h-4 w-4 text-blue-500" /> Giao Đề Cho Lớp Học
+                </h3>
+
+                <div className="space-y-3.5">
+                  <p className="text-2xs text-slate-500 leading-normal">
+                    Chọn các lớp học tương ứng sẽ làm đề thi này. Học sinh thuộc lớp được chọn sẽ thấy đề thi xuất hiện trên bảng học sinh.
+                  </p>
+
+                  {availableClasses.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {availableClasses.map((cls) => {
+                        const isAssigned = assignedClasses.includes(cls);
+                        return (
+                          <button
+                            key={cls}
+                            type="button"
+                            onClick={() => handleToggleClass(cls)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1 ${
+                              isAssigned
+                                ? "bg-blue-500 border-blue-500 text-white shadow-xs"
+                                : "bg-slate-50 hover:bg-slate-100 border-slate-200 dark:bg-slate-950 dark:border-slate-800 text-slate-700 dark:text-slate-300"
+                            }`}
+                          >
+                            {isAssigned && <Check className="h-3.5 w-3.5" />}
+                            <span>Lớp {cls}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 text-2xs text-slate-400">
+                      Chưa có danh sách lớp học từ học sinh. Hãy nhập tên lớp thủ công ở dưới.
+                    </div>
+                  )}
+
+                  {/* Manual class input */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-2xs font-semibold text-slate-500">Tự nhập lớp khác</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ví dụ: 6A1"
+                        value={customClassName}
+                        onChange={(e) => setCustomClassName(e.target.value)}
+                        className="w-full text-xs p-2 border rounded-lg focus:outline-none dark:bg-slate-950 uppercase"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomClass}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg shrink-0 flex items-center justify-center"
+                      >
+                        <Plus className="h-4 w-4" /> Thêm
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Selected summary */}
+                  <div className="text-3xs text-slate-400 font-medium pt-1">
+                    {assignedClasses.length > 0 ? (
+                      <span>Đang chọn giao cho: <strong className="text-blue-500 font-bold">{assignedClasses.join(", ")}</strong></span>
+                    ) : (
+                      <span className="text-amber-500">Đang giao cho: <strong className="font-bold">Tất cả các lớp (tự động)</strong></span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

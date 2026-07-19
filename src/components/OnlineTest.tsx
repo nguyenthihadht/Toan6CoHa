@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   UserCheck
 } from "lucide-react";
+import { renderMath } from "../utils/mathFormatter";
 
 const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   easy: "Nhận biết (Cơ bản)",
@@ -134,10 +135,10 @@ export default function OnlineTest({
 
   const isQuizInTimeframe = (q: Quiz) => {
     const nowStr = new Date().toISOString();
-    if (q.startTime && nowStr < q.startTime) {
+    if (q.startTime && typeof q.startTime === "string" && q.startTime.trim() !== "" && nowStr < q.startTime) {
       return false;
     }
-    if (q.endTime && nowStr > q.endTime) {
+    if (q.endTime && typeof q.endTime === "string" && q.endTime.trim() !== "" && nowStr > q.endTime) {
       return false;
     }
     return true;
@@ -148,7 +149,7 @@ export default function OnlineTest({
       // Filter quizzes active in student's login/access timeframe AND assigned to their class
       const activeQuizzes = quizzes.filter(q => {
         const inTime = isQuizInTimeframe(q);
-        const assigned = !q.assignedClasses || q.assignedClasses.length === 0 || q.assignedClasses.includes(currentStudent.class);
+        const assigned = !q.assignedClasses || !Array.isArray(q.assignedClasses) || q.assignedClasses.length === 0 || q.assignedClasses.includes(currentStudent.class);
         return inTime && assigned;
       });
 
@@ -985,7 +986,7 @@ export default function OnlineTest({
 
                       <div className="space-y-3">
                         <p className="text-sm md:text-base font-medium text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
-                          {q.prompt}
+                          {renderMath(q.prompt)}
                         </p>
 
                         {/* Interactive Inputs */}
@@ -1004,7 +1005,7 @@ export default function OnlineTest({
                                       : "bg-white border-slate-100 hover:bg-slate-50 text-slate-600 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-300"
                                   }`}
                                 >
-                                  <span>{opt}</span>
+                                  <span>{renderMath(opt)}</span>
                                   <div className={`h-4.5 w-4.5 rounded-full border flex items-center justify-center ${isSelected ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white"}`}>
                                     {isSelected && <div className="h-2 w-2 rounded-full bg-white"></div>}
                                   </div>
@@ -1022,7 +1023,7 @@ export default function OnlineTest({
 
                               return (
                                 <div key={tf.id} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 dark:border-slate-850 bg-slate-50/30 dark:bg-slate-950/10 flex-wrap gap-2 text-xs">
-                                  <span className="font-semibold text-slate-600 dark:text-slate-400">{tf.statement}</span>
+                                  <span className="font-semibold text-slate-600 dark:text-slate-400">{renderMath(tf.statement)}</span>
                                   <div className="flex gap-1">
                                     <button
                                       onClick={() => handleTFSelect(q.id, tf.id, true)}
@@ -1060,7 +1061,7 @@ export default function OnlineTest({
 
                               return (
                                 <div key={pair.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 rounded-xl border border-slate-100 dark:border-slate-850 bg-slate-50/30 dark:bg-slate-950/10 gap-3">
-                                  <span className="font-semibold text-slate-700 dark:text-slate-300">{pair.left}</span>
+                                  <span className="font-semibold text-slate-700 dark:text-slate-300">{renderMath(pair.left)}</span>
                                   
                                   <div className="w-full sm:w-60">
                                     <select

@@ -24,6 +24,7 @@ import {
   Check,
   Plus
 } from "lucide-react";
+import { renderMath } from "../utils/mathFormatter";
 
 interface QuizBankProps {
   quizzes: Quiz[];
@@ -366,12 +367,26 @@ export default function QuizBank({
                     {quiz.title}
                   </h3>
 
-                  <div className="flex flex-wrap gap-1">
-                    {quiz.difficultyLevels.map((diff) => (
-                      <span key={diff} className="text-3xs px-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
-                        {DIFFICULTY_LABELS[diff].split(" ")[0]}
-                      </span>
-                    ))}
+                  <div className="flex justify-between items-center gap-2 mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                    <div className="flex flex-wrap gap-1">
+                      {quiz.difficultyLevels.map((diff) => (
+                        <span key={diff} className="text-3xs px-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-semibold">
+                          {DIFFICULTY_LABELS[diff].split(" ")[0]}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent selecting the quiz when clicking delete
+                        if (confirm(`Bạn có chắc chắn muốn xóa bộ đề thi: "${quiz.title}"?`)) {
+                          onDeleteQuiz(quiz.id);
+                        }
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all"
+                      title="Xóa đề thi"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -676,7 +691,7 @@ export default function QuizBank({
                       </div>
 
                       <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
-                        {q.prompt}
+                        {renderMath(q.prompt)}
                       </p>
 
                       {/* Display formats */}
@@ -684,7 +699,7 @@ export default function QuizBank({
                         <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
                           {q.options.map((opt, oIdx) => (
                             <div key={oIdx} className="bg-slate-50 dark:bg-slate-950 p-2 rounded-lg border border-slate-100 dark:border-slate-850">
-                              {opt}
+                              {renderMath(opt)}
                             </div>
                           ))}
                         </div>
@@ -694,7 +709,7 @@ export default function QuizBank({
                         <div className="space-y-1 pt-1 text-xs">
                           {q.trueFalseStatements.map((statement) => (
                             <div key={statement.id} className="flex justify-between items-center bg-slate-50 dark:bg-slate-950 p-2 rounded-lg">
-                              <span>{statement.statement}</span>
+                              <span>{renderMath(statement.statement)}</span>
                               <span className={`font-semibold ${statement.answer ? "text-emerald-600" : "text-rose-600"}`}>
                                 {statement.answer ? "Đúng" : "Sai"}
                               </span>
@@ -708,14 +723,14 @@ export default function QuizBank({
                           <div className="space-y-1">
                             {q.matchingPairs.map((pair) => (
                               <div key={pair.id} className="bg-slate-50 dark:bg-slate-950 p-1.5 rounded border border-slate-100 dark:border-slate-850">
-                                {pair.left}
+                                {renderMath(pair.left)}
                               </div>
                             ))}
                           </div>
                           <div className="space-y-1">
                             {q.matchingPairs.map((pair) => (
                               <div key={pair.id} className="bg-slate-50 dark:bg-slate-950 p-1.5 rounded border border-slate-100 dark:border-slate-850">
-                                {pair.right}
+                                {renderMath(pair.right)}
                               </div>
                             ))}
                           </div>
@@ -726,10 +741,10 @@ export default function QuizBank({
                       <div className="bg-blue-50/20 border border-blue-100/30 rounded-xl p-3 text-xs space-y-1.5">
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-emerald-600">✓ ĐS đúng:</span>
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">{q.correctAnswer}</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{renderMath(q.correctAnswer)}</span>
                         </div>
                         <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
-                          <strong>Lời giải chi tiết:</strong> {q.solution}
+                          <strong>Lời giải chi tiết:</strong> {renderMath(q.solution)}
                         </p>
                         {q.hint && (
                           <p className="text-slate-500 dark:text-slate-400 italic">

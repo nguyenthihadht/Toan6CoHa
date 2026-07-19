@@ -832,7 +832,10 @@ export default function App() {
           {activeTab === "generator" && userRole === "admin" && (
             <Generator 
               curriculum={curriculum}
+              students={students}
               onSaveQuiz={handleSaveQuiz}
+              onUpdateQuiz={handleUpdateQuiz}
+              onDeleteQuiz={handleDeleteQuiz}
               onNavigate={setActiveTab}
               onSelectQuiz={setSelectedQuiz}
             />
