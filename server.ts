@@ -118,13 +118,13 @@ app.post("/api/generate-questions", async (req, res) => {
     const systemInstruction = `Bạn là một Chuyên gia sư phạm Toán THCS hàng đầu Việt Nam, am hiểu sâu sắc Chương trình GDPT 2018 môn Toán lớp 6 (Bộ sách Kết nối tri thức với cuộc sống).
 Nhiệm vụ của bạn là tạo đề ôn luyện hoặc kiểm tra môn Toán lớp 6 bám sát kiến thức SGK Kết nối tri thức.
 Mỗi câu hỏi được sinh ra phải đạt các yêu cầu sau:
-1. Độ chính xác tuyệt đối: Nội dung toán học, phép tính, khái niệm phải hoàn toàn chính xác.
+1. TẬP TRUNG TÍNH TOÁN VÀ THỰC HÀNH: Đề bài chủ yếu rèn luyện kỹ năng tính toán, thực hiện phép tính, tìm x, tính nhanh, ước lượng, tìm ước chung, bội chung... Tuyệt đối tránh các câu hỏi lý thuyết suông hoặc định nghĩa (Ví dụ không hỏi "Định nghĩa lũy thừa là gì", không yêu cầu phát biểu lý thuyết hay chọn khẳng định lý thuyết đúng/sai). Biến đổi mọi kiến thức thành các bài tập tính toán cụ thể.
 2. Đúng lứa tuổi: Sử dụng ngôn từ trong sáng, dễ hiểu, phù hợp với trình độ học sinh lớp 6 tại Việt Nam. Không ra đề quá khó, không dùng các ký hiệu toán học chưa được học ở lớp 6.
 3. Không lặp lại: Không sinh trùng câu hỏi hoặc ý tưởng trùng lắp. Các câu hỏi phân hóa rõ ràng.
-4. Tính thực tế: Đối với các câu hỏi vận dụng hoặc tự luận, ưu tiên các bài toán thực tế lồng ghép ngữ cảnh đời sống Việt Nam (mua bán, trồng cây, chia lớp, tính tiền, đo đạc...) để kích thích tư duy học sinh.
+4. Tính thực tế và số liệu tính toán: Đối với các câu hỏi vận dụng hoặc tự luận, ưu tiên các bài toán thực tế lồng ghép ngữ cảnh đời sống Việt Nam nhưng phải có yêu cầu tính toán ra con số cụ thể, rõ ràng từng bước tính.
 5. Đúng định dạng JSON được yêu cầu dưới đây.`;
 
-    const userPrompt = `Hãy tạo một bộ gồm đúng ${questionCount} câu hỏi toán học thuộc:
+    const userPrompt = `Hãy tạo một bộ gồm đúng ${questionCount} câu hỏi toán học thực hành tính toán thuộc:
 - Chương: ${chapterTitle || "Toán 6"}
 - Bài học: ${lessonName}
 - Kiến thức trọng tâm: ${keyKnowledge || "Kiến thức lớp 6 liên quan"}
@@ -132,6 +132,7 @@ Mỗi câu hỏi được sinh ra phải đạt các yêu cầu sau:
 
 Các yêu cầu kỹ thuật đối với đề bài:
 - Tổng số lượng câu hỏi cần tạo: ${questionCount} câu.
+- CHỈ tập trung vào rèn luyện KỸ NĂNG TÍNH TOÁN và giải bài tập thực hành số học/hình học (thực hiện phép tính, tìm x, tìm ước/bội, tính diện tích/chu vi, bài toán có lời văn cần tính toán số liệu cụ thể). TRÁNH các câu hỏi kiểm tra định nghĩa lý thuyết, phát biểu khái niệm hoặc câu hỏi đúng/sai mang tính lý thuyết suông.
 - Mức độ câu hỏi (phân bổ ngẫu nhiên hoặc chia đều theo các mức sau): ${difficultyLevels.join(", ")}. (easy = Nhận biết, medium = Thông hiểu, hard = Vận dụng, very_hard = Vận dụng cao).
 - Các dạng bài được phép tạo: ${types.join(", ")}. (multiple_choice = Trắc nghiệm, true_false = Đúng Sai, matching = Ghép đôi, fill_blank = Điền số, essay = Tự luận/Giải toán thực tế).
 ${customPrompt ? `- Yêu cầu thêm từ giáo viên: "${customPrompt}"` : ""}
@@ -141,26 +142,26 @@ Bạn PHẢI trả về một đối tượng JSON có thuộc tính duy nhất 
   "id": "chuỗi định danh duy nhất ví dụ q1, q2, q3...",
   "type": "một trong các giá trị: 'multiple_choice', 'true_false', 'matching', 'fill_blank', 'essay'",
   "difficulty": "một trong các giá trị: 'easy', 'medium', 'hard', 'very_hard'",
-  "prompt": "nội dung câu hỏi bằng tiếng Việt, viết rõ ràng bằng Latex hoặc văn bản thường cho công thức (Ví dụ 3^2, x \\in \\mathbb{N}). Hãy chú thích đề bài rõ ràng.",
-  "options": ["mảng 4 lựa chọn cho trắc nghiệm, ví dụ: ['A. 5', 'B. 6', 'C. 7', 'D. 8']. Bỏ qua nếu không phải multiple_choice."],
+  "prompt": "nội dung câu hỏi rèn luyện tính toán bằng tiếng Việt, viết rõ ràng bằng Latex hoặc văn bản thường cho công thức (Ví dụ: 'Thực hiện phép tính: 3^2 + 5 * 4', 'Tìm x biết: x - 12 = 15'). Hãy chú thích đề bài và số liệu rõ ràng.",
+  "options": ["mảng 4 lựa chọn đáp số cho trắc nghiệm, ví dụ: ['A. 5', 'B. 6', 'C. 7', 'D. 8']. Bỏ qua nếu không phải multiple_choice."],
   "correctAnswer": "đáp án đúng. Cách điền đáp án đúng:
      - Với 'multiple_choice': ghi chữ cái đại diện viết hoa, ví dụ: 'C' (không ghi 'C. 7').
-     - Với 'true_false': ghi tóm tắt đáp án đúng, ví dụ 'Câu A: Đúng, Câu B: Sai...'.
-     - Với 'matching': ghi chỉ dẫn ghép cặp đúng, ví dụ 'A-2, B-1, C-3'.
-     - Với 'fill_blank': ghi số hoặc từ cần điền trực tiếp, ví dụ '12' hoặc 'số nguyên tố'.
-     - Với 'essay': ghi tóm tắt đáp án cuối cùng, ví dụ 'x = 15'.",
+     - Với 'true_false': ghi tóm tắt kết quả tính đúng/sai của các phép tính được đưa ra, ví dụ 'Câu A: Đúng, Câu B: Sai...'. Ví dụ: Phát biểu A: 'Kết quả của phép tính 2^3 + 5 là 13' -> True.
+     - Với 'matching': ghi chỉ dẫn ghép cặp đúng (ví dụ: cột trái là phép tính, cột phải là kết quả), ví dụ 'A-2, B-1, C-3'.
+     - Với 'fill_blank': ghi số kết quả tính toán cần điền trực tiếp, ví dụ '12'.
+     - Với 'essay': ghi tóm tắt đáp số cuối cùng, ví dụ 'x = 15'.",
   "trueFalseStatements": [
-     { "id": "tf1", "statement": "Phát biểu 1", "answer": true },
-     { "id": "tf2", "statement": "Phát biểu 2", "answer": false }
-  ], // CHỈ cung cấp mảng này nếu type là 'true_false'. Mảng gồm ít nhất 2 đến 4 phát biểu để học sinh tích chọn Đúng hoặc Sai.
+     { "id": "tf1", "statement": "Kết quả của biểu thức A là 25", "answer": true },
+     { "id": "tf2", "statement": "Số dư của phép chia B cho 3 là 1", "answer": false }
+  ], // CHỈ cung cấp mảng này nếu type là 'true_false'. Đảm bảo các phát biểu là các mệnh đề khẳng định về kết quả tính toán/tính chất số học có số liệu cụ thể để học sinh tính toán và kiểm tra Đúng/Sai. Tránh phát biểu lý thuyết suông định nghĩa.
   "matchingPairs": [
-     { "id": "m1", "left": "A. Luỹ thừa 2^3", "right": "1. Giá trị là 6" },
-     { "id": "m2", "left": "B. Luỹ thừa 3^2", "right": "2. Giá trị là 8" },
-     { "id": "m3", "left": "C. Tích 2.3", "right": "3. Giá trị là 9" }
-  ], // CHỈ cung cấp mảng này nếu type là 'matching'. Học sinh sẽ ghép nối cột trái với cột phải. Hãy đảm bảo thứ tự cột phải lộn xộn để học sinh ghép.
-  "solution": "Lời giải chi tiết từng bước bằng tiếng Việt, giảng giải cặn kẽ để học sinh học tập tốt nhất.",
-  "hint": "Gợi ý hoặc mẹo nhỏ giúp học sinh định hướng cách làm bài.",
-  "comment": "Nhận xét sư phạm về câu hỏi này (ví dụ: Lưu ý lỗi tính toán, nhắc nhở định nghĩa...)",
+     { "id": "m1", "left": "A. Phép tính 2^3 + 4", "right": "1. Kết quả là 6" },
+     { "id": "m2", "left": "B. Phép tính 18 : 3", "right": "2. Kết quả là 12" },
+     { "id": "m3", "left": "C. Phép tính 3 * 5 - 6", "right": "3. Kết quả là 9" }
+  ], // CHỈ cung cấp mảng này nếu type là 'matching'. Học sinh sẽ ghép nối cột trái với cột phải. Đảm bảo các vế ghép đôi chứa phép tính và kết quả tính toán tương ứng, hoặc số và tính chất số học cụ thể. Thứ tự cột phải lộn xộn để học sinh ghép.
+  "solution": "Lời giải chi tiết từng bước tính toán bằng tiếng Việt, giải thích cặn kẽ cách biến đổi và tính ra kết quả.",
+  "hint": "Gợi ý hoặc mẹo tính nhanh/phương pháp làm bài giúp học sinh định hướng.",
+  "comment": "Nhận xét sư phạm về câu hỏi này (ví dụ: Lưu ý thứ tự thực hiện phép tính, tránh nhầm lẫn dấu...)",
   "competency": "Năng lực toán học được đánh giá (Ví dụ: 'Năng lực tư duy và lập luận toán học', 'Năng lực giải quyết vấn đề toán học')"
 }
 
