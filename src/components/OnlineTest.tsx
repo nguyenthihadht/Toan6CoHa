@@ -134,12 +134,18 @@ export default function OnlineTest({
   }, [timerActive, quiz]);
 
   const isQuizInTimeframe = (q: Quiz) => {
-    const nowStr = new Date().toISOString();
-    if (q.startTime && typeof q.startTime === "string" && q.startTime.trim() !== "" && nowStr < q.startTime) {
-      return false;
+    const now = new Date();
+    if (q.startTime && typeof q.startTime === "string" && q.startTime.trim() !== "") {
+      const startTimeObj = new Date(q.startTime);
+      if (!isNaN(startTimeObj.getTime()) && now < startTimeObj) {
+        return false;
+      }
     }
-    if (q.endTime && typeof q.endTime === "string" && q.endTime.trim() !== "" && nowStr > q.endTime) {
-      return false;
+    if (q.endTime && typeof q.endTime === "string" && q.endTime.trim() !== "") {
+      const endTimeObj = new Date(q.endTime);
+      if (!isNaN(endTimeObj.getTime()) && now > endTimeObj) {
+        return false;
+      }
     }
     return true;
   };
@@ -377,22 +383,28 @@ export default function OnlineTest({
 
   // Check quiz accessibility based on date & attempts
   const checkQuizAccessibility = () => {
-    const nowStr = new Date().toISOString();
+    const now = new Date();
     
     // 1. Check start date
-    if (quiz.startTime && nowStr < quiz.startTime) {
-      return {
-        allowed: false,
-        reason: `Bài ôn tập chưa mở. Thời gian mở: ${new Date(quiz.startTime).toLocaleString("vi-VN")}`
-      };
+    if (quiz.startTime && typeof quiz.startTime === "string" && quiz.startTime.trim() !== "") {
+      const startTimeObj = new Date(quiz.startTime);
+      if (!isNaN(startTimeObj.getTime()) && now < startTimeObj) {
+        return {
+          allowed: false,
+          reason: `Bài ôn tập chưa mở. Thời gian mở: ${startTimeObj.toLocaleString("vi-VN")}`
+        };
+      }
     }
 
     // 2. Check end date
-    if (quiz.endTime && nowStr > quiz.endTime) {
-      return {
-        allowed: false,
-        reason: `Bài ôn tập đã khóa / quá hạn chót nộp bài. Thời gian đóng: ${new Date(quiz.endTime).toLocaleString("vi-VN")}`
-      };
+    if (quiz.endTime && typeof quiz.endTime === "string" && quiz.endTime.trim() !== "") {
+      const endTimeObj = new Date(quiz.endTime);
+      if (!isNaN(endTimeObj.getTime()) && now > endTimeObj) {
+        return {
+          allowed: false,
+          reason: `Bài ôn tập đã khóa / quá hạn chót nộp bài. Thời gian đóng: ${endTimeObj.toLocaleString("vi-VN")}`
+        };
+      }
     }
 
     // 2.5. Check class assignment restriction
@@ -513,7 +525,7 @@ export default function OnlineTest({
     setIsAIGrading(true);
 
     let objectiveScore = 0;
-    const gradingReport: Record<string, { score: number; comment: string; isAIGraded?: boolean }> = {};
+    const gradingReport: Record<string, { score: number; comment: string; isAIGraded?: boolean; isCorrect?: boolean }> = {};
 
     // Use current states or latest Ref values if auto submitted
     const finalAnswers = answersRef.current;
@@ -581,7 +593,8 @@ export default function OnlineTest({
       objectiveScore += qScore;
       gradingReport[q.id] = {
         score: parseFloat(qScore.toFixed(2)),
-        comment: feedbackComment
+        comment: feedbackComment,
+        isCorrect: isCorrect
       };
     });
 
@@ -616,13 +629,15 @@ export default function OnlineTest({
         gradingReport[eq.id] = {
           score: parseFloat(mappedEssayScore.toFixed(2)),
           comment: `[Chấm bởi AI - Điểm đạt ${rawScoreOutof10}/10]: ${data.comment}`,
-          isAIGraded: true
+          isAIGraded: true,
+          isCorrect: rawScoreOutof10 >= 5
         };
       } catch (err: any) {
         console.error(err);
         gradingReport[eq.id] = {
           score: 0,
-          comment: "Không thể gọi AI chấm tự luận chi tiết. Ghi nhận 0đ cho bài viết này."
+          comment: "Không thể gọi AI chấm tự luận chi tiết. Ghi nhận 0đ cho bài viết này.",
+          isCorrect: false
         };
       }
     }
@@ -884,7 +899,9 @@ export default function OnlineTest({
                     {quiz.questions.map((q, idx) => {
                       const grade = detailedGrades[q.id];
                       const points = 10 / quiz.questions.length;
-                      const isCorrect = grade?.score === points;
+                      const isCorrect = grade?.isCorrect !== undefined 
+                        ? grade.isCorrect 
+                        : (grade && grade.score > 0 && Math.abs(grade.score - points) < 0.05);
 
                       return (
                         <div key={q.id} className="pt-5 first:pt-0 space-y-3">

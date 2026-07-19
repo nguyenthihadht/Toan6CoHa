@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Quiz, Question, QuestionType, Difficulty, Student } from "../types";
 import { Chapter } from "../data/curriculum";
+import { MOCK_QUIZZES } from "../data/mockQuizzes";
 import { 
   Search, 
   Filter, 
@@ -22,7 +23,8 @@ import {
   ChevronDown,
   Users,
   Check,
-  Plus
+  Plus,
+  Sparkles
 } from "lucide-react";
 import { renderMath } from "../utils/mathFormatter";
 
@@ -36,6 +38,7 @@ interface QuizBankProps {
   onSelectQuiz: (quiz: Quiz) => void;
   selectedQuiz: Quiz | null;
   onUpdateQuiz: (quiz: Quiz) => void;
+  onSaveQuiz: (quiz: Quiz) => void;
 }
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
@@ -62,12 +65,14 @@ export default function QuizBank({
   onNavigate,
   onSelectQuiz,
   selectedQuiz,
-  onUpdateQuiz
+  onUpdateQuiz,
+  onSaveQuiz
 }: QuizBankProps) {
   // Search & Filters state
   const [searchQuery, setSearchQuery] = useState("");
   const [filterChapterId, setFilterChapterId] = useState("");
   const [filterDifficulty, setFilterDifficulty] = useState("");
+  const [showSampleTemplatesModal, setShowSampleTemplatesModal] = useState(false);
   
   // Quiz configuration states
   const [isConfiguring, setIsConfiguring] = useState(false);
@@ -143,6 +148,20 @@ export default function QuizBank({
       setAssignedClasses([...assignedClasses, trimmed]);
     }
     setCustomClassName("");
+  };
+
+  const handleImportSampleQuiz = (sampleQuiz: Quiz) => {
+    const importedQuiz: Quiz = {
+      ...sampleQuiz,
+      id: "quiz-sample-import-" + Date.now(),
+      title: `${sampleQuiz.title} (Từ đề mẫu)`,
+      createdAt: new Date().toISOString(),
+      createdBy: "Cô Nguyễn Hà (Tải từ đề mẫu)",
+    };
+    onSaveQuiz(importedQuiz);
+    onSelectQuiz(importedQuiz);
+    setShowSampleTemplatesModal(false);
+    alert(`Đã tải lên và nhập đề mẫu "${sampleQuiz.title}" thành công vào ngân hàng đề của bạn!`);
   };
   
   // Print preview overlay modal state
@@ -283,12 +302,21 @@ export default function QuizBank({
             Xem, sửa, nhân bản, làm trực tuyến, hoặc in ấn chuẩn hóa A4 bộ sưu tập đề thi của bạn.
           </p>
         </div>
-        <button
-          onClick={() => onNavigate("generator")}
-          className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2.5 shadow-md flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
-        >
-          <Edit className="h-4 w-4" /> Soạn Đề Mới
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowSampleTemplatesModal(true)}
+            className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs px-4 py-2.5 shadow-md flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
+          >
+            <Download className="h-4 w-4" /> Tải đề từ mẫu
+          </button>
+          
+          <button
+            onClick={() => onNavigate("generator")}
+            className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2.5 shadow-md flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
+          >
+            <Edit className="h-4 w-4" /> Soạn Đề Mới
+          </button>
+        </div>
       </div>
 
       {/* Filter toolbar */}
@@ -930,6 +958,78 @@ export default function QuizBank({
                 <Printer className="h-4 w-4" /> In / Lưu PDF
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sample Templates Modal */}
+      {showSampleTemplatesModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-sm p-4 flex justify-center items-center">
+          <div className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 md:p-8 space-y-6 max-h-[85vh] flex flex-col text-left">
+            
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 shrink-0">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-orange-500 animate-pulse" />
+                <div>
+                  <h3 className="font-display font-bold text-slate-900 dark:text-slate-100 text-lg">Kho Đề Ôn Tập Mẫu Chuẩn</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Chọn đề ôn tập chất lượng cao biên soạn sẵn để tải lên và tùy chỉnh.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSampleTemplatesModal(false)}
+                className="rounded-lg hover:bg-slate-50 dark:hover:bg-slate-850 p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* List of sample templates */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-4 py-2">
+              {MOCK_QUIZZES.map((sampleQuiz) => {
+                return (
+                  <div 
+                    key={sampleQuiz.id} 
+                    className="border border-slate-150 dark:border-slate-800 rounded-xl p-4 hover:border-blue-500/50 dark:hover:border-blue-500/30 bg-slate-50/50 dark:bg-slate-950/30 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-1.5 max-w-xl">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded">
+                          {sampleQuiz.questions.length} CÂU HỎI
+                        </span>
+                        {sampleQuiz.difficultyLevels.map((diff, idx) => (
+                          <span key={idx} className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded capitalize">
+                            {DIFFICULTY_LABELS[diff]?.split(" ")[0]}
+                          </span>
+                        ))}
+                      </div>
+                      <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm">{sampleQuiz.title}</h4>
+                      <p className="text-2xs text-slate-400 leading-relaxed">
+                        Biên soạn bởi: <span className="font-semibold text-slate-600 dark:text-slate-300">{sampleQuiz.createdBy}</span> • Gồm các dạng: {Array.from(new Set(sampleQuiz.questions.map(q => QUESTION_TYPE_LABELS[q.type]?.split(" ")[0] || q.type))).join(", ")}
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleImportSampleQuiz(sampleQuiz)}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all rounded-xl shadow-sm self-start md:self-auto shrink-0"
+                    >
+                      <Plus className="h-4 w-4" /> Nhập đề mẫu
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer advice */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end shrink-0">
+              <button
+                onClick={() => setShowSampleTemplatesModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-250 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all"
+              >
+                Đóng cửa sổ
+              </button>
+            </div>
+
           </div>
         </div>
       )}

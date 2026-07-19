@@ -91,7 +91,9 @@ export default function StudentHistory({ currentStudent, submissions, quizzes }:
           <div className="space-y-6 divide-y divide-slate-100 dark:divide-slate-800/60">
             {selectedQuiz.questions.map((q, idx) => {
               const grade = selectedSub.feedback[q.id];
-              const isCorrect = grade?.score === pointsPerQuestion;
+              const isCorrect = grade?.isCorrect !== undefined 
+                ? grade.isCorrect 
+                : (grade && grade.score > 0 && Math.abs(grade.score - pointsPerQuestion) < 0.05);
 
               return (
                 <div key={q.id} className="pt-5 first:pt-0 space-y-3">

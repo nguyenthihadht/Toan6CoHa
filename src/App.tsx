@@ -852,6 +852,7 @@ export default function App() {
               onSelectQuiz={setSelectedQuiz}
               selectedQuiz={selectedQuiz}
               onUpdateQuiz={handleUpdateQuiz}
+              onSaveQuiz={handleSaveQuiz}
             />
           )}
 

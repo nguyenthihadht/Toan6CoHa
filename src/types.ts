@@ -70,6 +70,7 @@ export interface StudentSubmission {
     score: number;
     comment: string;
     isAIGraded?: boolean;
+    isCorrect?: boolean;
   }>; // questionId -> grading info
   isGraded: boolean;
   attempt?: number; // Số thứ tự lượt làm bài (1 hoặc 2)
