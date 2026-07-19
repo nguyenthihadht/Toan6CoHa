@@ -10,6 +10,7 @@ import StudentManager from "./components/StudentManager";
 import CurriculumAdmin from "./components/CurriculumAdmin";
 import StudentHistory from "./components/StudentHistory";
 import LoginScreen from "./components/LoginScreen";
+import ChangePasswordModal from "./components/ChangePasswordModal";
 import { db, handleFirestoreError, OperationType } from "./firebase";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
 
@@ -54,6 +55,7 @@ export default function App() {
   // Firebase status & rule helper helpers
   const [firebaseStatus, setFirebaseStatus] = useState<"connected" | "offline_fallback" | "checking">("checking");
   const [showRulesHelperModal, setShowRulesHelperModal] = useState<boolean>(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState<boolean>(false);
   const [copiedRules, setCopiedRules] = useState<boolean>(false);
 
   // Load Initial Data from Firestore (or LocalStorage on error/permission-denied)
@@ -563,7 +565,8 @@ export default function App() {
 
   const handleAdminLogin = (password: string) => {
     const trimmed = password.trim();
-    if (trimmed === adminPassword || trimmed === "admin" || trimmed === "123456") {
+    const expectedPassword = adminPassword || "admin";
+    if (trimmed === expectedPassword) {
       setUserRole("admin");
       setCurrentStudent(null);
       localStorage.setItem("ai_math_user_role", "admin");
@@ -679,6 +682,18 @@ export default function App() {
               </span>
             </button>
 
+            {userRole === "admin" && (
+              <button
+                onClick={() => setShowChangePasswordModal(true)}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-xs font-medium text-blue-200 hover:text-white transition-all"
+              >
+                <span className="flex items-center gap-2">
+                  <Key className="h-4 w-4 text-indigo-400" />
+                  Đổi mật khẩu
+                </span>
+              </button>
+            )}
+
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 text-xs font-medium text-red-250 hover:text-red-100 transition-all"
@@ -747,6 +762,21 @@ export default function App() {
                   {darkMode ? "Chế độ Sáng" : "Chế độ Tối"}
                 </span>
               </button>
+
+              {userRole === "admin" && (
+                <button
+                  onClick={() => {
+                    setShowChangePasswordModal(true);
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-xs font-medium text-blue-200 hover:text-white transition-all"
+                >
+                  <span className="flex items-center gap-2">
+                    <Key className="h-4 w-4 text-indigo-400" />
+                    Đổi mật khẩu
+                  </span>
+                </button>
+              )}
 
               <button
                 onClick={handleLogout}
@@ -846,6 +876,7 @@ export default function App() {
               quizzes={quizzes} 
               curriculum={curriculum}
               students={students}
+              submissions={submissions}
               onDeleteQuiz={handleDeleteQuiz}
               onDuplicateQuiz={handleDuplicateQuiz}
               onNavigate={setActiveTab}
@@ -1063,6 +1094,23 @@ service cloud.firestore {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
+        <ChangePasswordModal 
+          adminPassword={adminPassword}
+          onClose={() => setShowChangePasswordModal(false)}
+          onChangePassword={async (newPass) => {
+            setAdminPassword(newPass);
+            localStorage.setItem("ai_math_admin_password", newPass);
+            try {
+              await setDoc(doc(db, "settings", "general"), { adminPassword: newPass }, { merge: true });
+            } catch (err) {
+              handleFirestoreError(err, OperationType.UPDATE, "settings/general");
+            }
+          }}
+        />
       )}
     </div>
   );

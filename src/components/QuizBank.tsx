@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Quiz, Question, QuestionType, Difficulty, Student } from "../types";
+import { Quiz, Question, QuestionType, Difficulty, Student, StudentSubmission } from "../types";
 import { Chapter } from "../data/curriculum";
 import { MOCK_QUIZZES } from "../data/mockQuizzes";
 import { 
@@ -32,6 +32,7 @@ interface QuizBankProps {
   quizzes: Quiz[];
   curriculum: Chapter[];
   students: Student[];
+  submissions: StudentSubmission[];
   onDeleteQuiz: (id: string) => void;
   onDuplicateQuiz: (id: string) => void;
   onNavigate: (tab: string) => void;
@@ -60,6 +61,7 @@ export default function QuizBank({
   quizzes, 
   curriculum, 
   students,
+  submissions,
   onDeleteQuiz,
   onDuplicateQuiz,
   onNavigate,
@@ -178,6 +180,36 @@ export default function QuizBank({
     const matchesDifficulty = filterDifficulty ? quiz.difficultyLevels.includes(filterDifficulty as Difficulty) : true;
     return matchesSearch && matchesChapter && matchesDifficulty;
   });
+
+  // Export submissions to CSV (Excel)
+  const handleExportSubmissions = (quiz: Quiz) => {
+    const quizSubmissions = submissions.filter(sub => sub.quizId === quiz.id);
+    if (quizSubmissions.length === 0) {
+      alert("Chưa có học sinh nào nộp bài ôn tập này để xuất bảng điểm!");
+      return;
+    }
+
+    // Tiêu đề & nội dung CSV
+    let csvContent = "\uFEFF"; // UTF-8 BOM
+    csvContent += `BÁO CÁO KẾT QUẢ ÔN TẬP: ${quiz.title.toUpperCase()}\n`;
+    csvContent += `Người phụ trách: Cô Nguyễn Hà\n`;
+    csvContent += `Thời gian xuất báo cáo: ${new Date().toLocaleString("vi-VN")}\n\n`;
+    csvContent += "Mã học sinh,Họ và tên,Lớp,Thời gian nộp,Điểm số (thang điểm 10)\n";
+
+    quizSubmissions.forEach(sub => {
+      const formattedDate = new Date(sub.submittedAt).toLocaleString("vi-VN").replace(/,/g, " -");
+      csvContent += `"${sub.studentId || "" || "Tự do"}","${sub.studentName}","${sub.studentClass}","${formattedDate}",${sub.score.toFixed(2)}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Bang_Diem_${quiz.title.replace(/\s+/g, "_")}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Export to Word (.doc / .docx HTML Proxy)
   const handleExportToWord = (quiz: Quiz) => {
@@ -371,54 +403,89 @@ export default function QuizBank({
               Không tìm thấy đề thi nào khớp bộ lọc.
             </div>
           ) : (
-            filteredQuizzes.map((quiz) => (
-              <div
-                key={quiz.id}
-                onClick={() => onSelectQuiz(quiz)}
-                className={`rounded-2xl border p-4 cursor-pointer transition-all ${
-                  selectedQuiz?.id === quiz.id
-                    ? "border-blue-500 bg-blue-50/20 dark:bg-blue-950/10 shadow-sm"
-                    : "border-slate-100 bg-white hover:bg-slate-50/50 dark:border-slate-850 dark:bg-slate-900"
-                }`}
-              >
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center flex-wrap gap-1.5">
-                    <span className="inline-flex rounded-md bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 text-2xs font-bold text-blue-600 dark:text-blue-400">
-                      {quiz.questions.length} câu hỏi
-                    </span>
-                    <span className="text-2xs text-slate-400">
-                      {new Date(quiz.createdAt).toLocaleDateString("vi-VN")}
-                    </span>
-                  </div>
+            filteredQuizzes.map((quiz) => {
+              // Tính toán thống kê làm bài cho card
+              const cardClasses = quiz.assignedClasses && quiz.assignedClasses.length > 0
+                ? quiz.assignedClasses
+                : Array.from(new Set(students.map(st => st.class))).filter(Boolean).sort();
+              const cardStudents = students.filter(st => cardClasses.includes(st.class));
+              const cardCompleted = cardStudents.filter(st => {
+                return submissions.some(sub => 
+                  sub.quizId === quiz.id && 
+                  (sub.studentId === st.id || (sub.studentName === st.name && sub.studentClass === st.class))
+                );
+              });
 
-                  <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200 line-clamp-2">
-                    {quiz.title}
-                  </h3>
-
-                  <div className="flex justify-between items-center gap-2 mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/60">
-                    <div className="flex flex-wrap gap-1">
-                      {quiz.difficultyLevels.map((diff) => (
-                        <span key={diff} className="text-3xs px-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-semibold">
-                          {DIFFICULTY_LABELS[diff].split(" ")[0]}
-                        </span>
-                      ))}
+              return (
+                <div
+                  key={quiz.id}
+                  onClick={() => onSelectQuiz(quiz)}
+                  className={`rounded-2xl border p-4 cursor-pointer transition-all ${
+                    selectedQuiz?.id === quiz.id
+                      ? "border-blue-500 bg-blue-50/20 dark:bg-blue-950/10 shadow-sm"
+                      : "border-slate-100 bg-white hover:bg-slate-50/50 dark:border-slate-850 dark:bg-slate-900"
+                  }`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center flex-wrap gap-1.5">
+                      <span className="inline-flex rounded-md bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 text-2xs font-bold text-blue-600 dark:text-blue-400">
+                        {quiz.questions.length} câu hỏi
+                      </span>
+                      <span className="text-2xs text-slate-400">
+                        {new Date(quiz.createdAt).toLocaleDateString("vi-VN")}
+                      </span>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation(); // Prevent selecting the quiz when clicking delete
-                        if (confirm(`Bạn có chắc chắn muốn xóa bộ đề thi: "${quiz.title}"?`)) {
-                          onDeleteQuiz(quiz.id);
-                        }
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all"
-                      title="Xóa đề thi"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+
+                    <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200 line-clamp-2">
+                      {quiz.title}
+                    </h3>
+
+                    {/* Thống kê thu gọn dưới đề thi */}
+                    <div className="text-[10px] space-y-1 bg-slate-50 dark:bg-slate-950/40 p-2 rounded-xl mt-1.5 border border-slate-100/60 dark:border-slate-800/40">
+                      <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
+                        <span className="flex items-center gap-1 font-semibold truncate">
+                          <Users className="h-3 w-3 text-blue-500 shrink-0" />
+                          {quiz.assignedClasses && quiz.assignedClasses.length > 0 
+                            ? `Lớp: ${quiz.assignedClasses.join(", ")}` 
+                            : "Tất cả lớp"}
+                        </span>
+                        <span className="font-bold shrink-0 text-slate-600 dark:text-slate-300">
+                          {cardCompleted.length}/{cardStudents.length} HS đã làm
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-1 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-emerald-500 h-1 rounded-full transition-all"
+                          style={{ width: `${cardStudents.length > 0 ? (cardCompleted.length / cardStudents.length) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center gap-2 mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                      <div className="flex flex-wrap gap-1">
+                        {quiz.difficultyLevels.map((diff) => (
+                          <span key={diff} className="text-3xs px-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-semibold">
+                            {DIFFICULTY_LABELS[diff].split(" ")[0]}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent selecting the quiz when clicking delete
+                          if (confirm(`Bạn có chắc chắn muốn xóa bộ đề thi: "${quiz.title}"?`)) {
+                            onDeleteQuiz(quiz.id);
+                          }
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all"
+                        title="Xóa đề thi"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -696,6 +763,133 @@ export default function QuizBank({
                   </div>
                 </form>
               )}
+
+              {/* Submission Statistics & Class Reports Section */}
+              <div className="bg-slate-50 dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-850 space-y-4 no-print">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-3">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                      <Users className="h-4 w-4 text-emerald-500" />
+                      Tình hình nộp bài của các lớp học được giao
+                    </h4>
+                    <p className="text-[10px] text-slate-400 mt-1">Số liệu trực quan về học sinh đã làm và chưa làm bài tập này.</p>
+                  </div>
+                  {/* Export Button */}
+                  <button
+                    onClick={() => handleExportSubmissions(selectedQuiz)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 py-2 shadow-sm active:scale-95 transition-all self-start sm:self-auto"
+                    title="Xuất bảng điểm ra file Excel/CSV"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Xuất bảng điểm (Excel/CSV)
+                  </button>
+                </div>
+
+                {/* Class-by-class breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(selectedQuiz.assignedClasses && selectedQuiz.assignedClasses.length > 0
+                    ? selectedQuiz.assignedClasses
+                    : Array.from(new Set(students.map(st => st.class))).filter(Boolean).sort()
+                  ).map((cls) => {
+                    const studentsInClass = students.filter(st => st.class === cls);
+                    
+                    const isStudentSubmitted = (studentId: string, studentName: string, studentClass: string) => {
+                      return submissions.some(sub => 
+                        sub.quizId === selectedQuiz.id && 
+                        (sub.studentId === studentId || 
+                         (sub.studentName === studentName && sub.studentClass === studentClass))
+                      );
+                    };
+
+                    const completed = studentsInClass.filter(st => isStudentSubmitted(st.id, st.name, st.class));
+                    const notCompleted = studentsInClass.filter(st => !isStudentSubmitted(st.id, st.name, st.class));
+
+                    return (
+                      <div key={cls} className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl p-3.5 space-y-2.5 shadow-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                            Lớp {cls}
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-400">
+                            Sĩ số: {studentsInClass.length} HS
+                          </span>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="space-y-1">
+                          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div 
+                              className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500"
+                              style={{ width: `${studentsInClass.length > 0 ? (completed.length / studentsInClass.length) * 100 : 0}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[10px] font-semibold">
+                            <span className="text-emerald-600 dark:text-emerald-400">
+                              Đã làm: {completed.length} HS
+                            </span>
+                            <span className="text-rose-500 dark:text-rose-400">
+                              Chưa làm: {notCompleted.length} HS
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Dropdown list of non-completed */}
+                        {notCompleted.length > 0 ? (
+                          <div className="text-[10px] text-slate-400 border-t border-dashed border-slate-100 dark:border-slate-800/80 pt-2 leading-relaxed">
+                            <span className="font-bold text-slate-500">Chưa làm:</span> {notCompleted.map(st => st.name).join(", ")}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 border-t border-dashed border-slate-100 dark:border-slate-800/80 pt-2">
+                            <Check className="h-3 w-3" /> Tất cả học sinh đã nộp bài
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Detailed submission list with individual scores */}
+                <div className="space-y-2 pt-3 border-t border-slate-150 dark:border-slate-850">
+                  <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Bảng chi tiết nộp bài & Điểm số</h5>
+                  <div className="overflow-x-auto border border-slate-150 dark:border-slate-850 rounded-xl bg-white dark:bg-slate-900">
+                    <table className="w-full border-collapse text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-150 dark:border-slate-850 bg-slate-50/50 dark:bg-slate-950/20 text-slate-400 font-semibold text-[10px] uppercase">
+                          <th className="py-2 px-3">Họ và tên học sinh</th>
+                          <th className="py-2 px-3">Lớp</th>
+                          <th className="py-2 px-3">Thời gian nộp</th>
+                          <th className="py-2 px-3 text-right">Điểm số</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                        {submissions.filter(sub => sub.quizId === selectedQuiz.id).length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="py-6 px-3 text-center text-slate-400 italic text-xs">
+                              Chưa có học sinh nào nộp bài ôn tập này.
+                            </td>
+                          </tr>
+                        ) : (
+                          submissions
+                            .filter(sub => sub.quizId === selectedQuiz.id)
+                            .map((sub, sIdx) => (
+                              <tr key={sub.id || sIdx} className="hover:bg-slate-50 dark:hover:bg-slate-950/40 transition-colors">
+                                <td className="py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">
+                                  {sub.studentName}
+                                </td>
+                                <td className="py-2 px-3 text-slate-500 font-medium text-2xs">{sub.studentClass}</td>
+                                <td className="py-2 px-3 text-slate-400 text-3xs">
+                                  {new Date(sub.submittedAt).toLocaleString("vi-VN")}
+                                </td>
+                                <td className="py-2 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                  {sub.score.toFixed(2)} / 10 điểm
+                                </td>
+                              </tr>
+                            ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
 
               {/* Questions review in Inspector */}
               <div className="space-y-4">
