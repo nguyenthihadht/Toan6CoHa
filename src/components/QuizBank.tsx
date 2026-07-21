@@ -24,7 +24,9 @@ import {
   Users,
   Check,
   Plus,
-  Sparkles
+  Sparkles,
+  FileJson,
+  Upload
 } from "lucide-react";
 import { renderMath } from "../utils/mathFormatter";
 
@@ -165,6 +167,200 @@ export default function QuizBank({
     setShowSampleTemplatesModal(false);
     alert(`Đã tải lên và nhập đề mẫu "${sampleQuiz.title}" thành công vào ngân hàng đề của bạn!`);
   };
+
+  const handleDownloadWordTemplate = () => {
+    const sampleQuiz: Quiz = {
+      id: "sample-word-template",
+      title: "Đề thi ôn tập Toán 6 tự soạn mẫu",
+      chapterId: "chuong-1",
+      lessonId: "bai-1",
+      difficultyLevels: ["easy", "medium"],
+      questionCount: 5,
+      types: ["multiple_choice", "true_false", "matching", "fill_blank", "essay"],
+      questions: [
+        {
+          id: "sq-1",
+          type: "multiple_choice",
+          difficulty: "easy",
+          prompt: "Kết quả của phép tính 12 + 15 là:",
+          options: ["A. 27", "B. 25", "C. 37", "D. 35"],
+          correctAnswer: "A. 27",
+          solution: "Ta thực hiện cộng trực tiếp: 12 + 15 = 27.",
+          competency: "Năng lực giải quyết vấn đề toán học"
+        },
+        {
+          id: "sq-2",
+          type: "true_false",
+          difficulty: "medium",
+          prompt: "Xét tính đúng sai của các khẳng định sau về số nguyên tố:",
+          correctAnswer: "Phát biểu 1: Đúng, Phát biểu 2: Sai",
+          trueFalseStatements: [
+            { "id": "tf-1", "statement": "Số 2 là số nguyên tố chẵn duy nhất.", "answer": true },
+            { "id": "tf-2", "statement": "Mọi số lẻ đều là số nguyên tố.", "answer": false }
+          ],
+          solution: "Số 2 là số nguyên tố chẵn duy nhất (Đúng). Số 9 là số lẻ nhưng không phải số nguyên tố vì chia hết cho 3 (Sai).",
+          competency: "Năng lực tư duy và lập luận toán học"
+        },
+        {
+          id: "sq-3",
+          type: "matching",
+          difficulty: "medium",
+          prompt: "Hãy ghép mỗi biểu thức ở cột A với kết quả tương ứng ở cột B:",
+          correctAnswer: "3^2 ghép với 9, 2^3 ghép với 8",
+          matchingPairs: [
+            { "id": "p-1", "left": "3^2", "right": "9" },
+            { "id": "p-2", "left": "2^3", "right": "8" }
+          ],
+          solution: "3^2 = 9; 2^3 = 8.",
+          competency: "Năng lực tư duy và lập luận toán học"
+        },
+        {
+          id: "sq-4",
+          type: "fill_blank",
+          difficulty: "easy",
+          prompt: "Tìm số tự nhiên x biết x - 5 = 10. Giá trị của x là:",
+          correctAnswer: "15",
+          solution: "x = 10 + 5 = 15.",
+          competency: "Năng lực tính toán"
+        },
+        {
+          id: "sq-5",
+          type: "essay",
+          difficulty: "hard",
+          prompt: "Một lớp học có 24 học sinh nam và 18 học sinh nữ. Cô giáo muốn chia lớp thành các nhóm sao cho số nam và số nữ ở mỗi nhóm đều bằng nhau. Hỏi cô giáo có thể chia được nhiều nhất bao nhiêu nhóm?",
+          correctAnswer: "6 nhóm",
+          solution: "Số nhóm nhiều nhất là ƯCLN(24, 18). Ta có 24 = 2^3 * 3, 18 = 2 * 3^2. Do đó ƯCLN(24, 18) = 2 * 3 = 6. Vậy chia được nhiều nhất là 6 nhóm.",
+          competency: "Năng lực giải quyết vấn đề toán học"
+        }
+      ],
+      createdAt: new Date().toISOString(),
+      createdBy: "Cô Nguyễn Hà (Đề mẫu Word)",
+      timeLimit: 45
+    };
+
+    handleExportToWord(sampleQuiz, true);
+  };
+
+  const handleExportToJSON = (quiz: Quiz) => {
+    const quizToExport = {
+      title: quiz.title,
+      chapterId: quiz.chapterId || "chuong-1",
+      lessonId: quiz.lessonId || "bai-1",
+      difficultyLevels: quiz.difficultyLevels,
+      timeLimit: quiz.timeLimit || 0,
+      questions: quiz.questions.map(q => ({
+        type: q.type,
+        difficulty: q.difficulty,
+        prompt: q.prompt,
+        options: q.options || undefined,
+        correctAnswer: q.correctAnswer,
+        trueFalseStatements: q.trueFalseStatements || undefined,
+        matchingPairs: q.matchingPairs || undefined,
+        solution: q.solution,
+        hint: q.hint || undefined,
+        comment: q.comment || undefined,
+        competency: q.competency || "Năng lực giải quyết vấn đề toán học"
+      }))
+    };
+
+    const blob = new Blob([JSON.stringify(quizToExport, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${quiz.title.replace(/\s+/g, "_")}_export.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleUploadJSONQuiz = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = JSON.parse(content);
+
+        if (!parsed.title || typeof parsed.title !== "string") {
+          throw new Error("Thiếu hoặc sai định dạng thuộc tính 'title' (Tiêu đề đề thi)");
+        }
+        if (!parsed.questions || !Array.isArray(parsed.questions)) {
+          throw new Error("Thiếu hoặc sai định dạng thuộc tính 'questions' (Danh sách câu hỏi phải là một mảng)");
+        }
+        if (parsed.questions.length === 0) {
+          throw new Error("Danh sách câu hỏi trống!");
+        }
+
+        const validatedQuestions: Question[] = parsed.questions.map((q: any, index: number) => {
+          const qNum = index + 1;
+          if (!q.type || !["multiple_choice", "true_false", "matching", "fill_blank", "essay"].includes(q.type)) {
+            throw new Error(`Câu hỏi số ${qNum}: Thiếu hoặc loại câu hỏi 'type' không hợp lệ (Phải là multiple_choice, true_false, matching, fill_blank hoặc essay).`);
+          }
+          if (!q.prompt || typeof q.prompt !== "string") {
+            throw new Error(`Câu hỏi số ${qNum}: Thiếu hoặc sai định dạng 'prompt' (Nội dung câu hỏi).`);
+          }
+          if (q.type === "multiple_choice" && (!q.options || !Array.isArray(q.options) || q.options.length === 0)) {
+            throw new Error(`Câu hỏi số ${qNum}: Dạng trắc nghiệm yêu cầu mảng 'options' không được rỗng.`);
+          }
+          if (q.type === "true_false" && (!q.trueFalseStatements || !Array.isArray(q.trueFalseStatements) || q.trueFalseStatements.length === 0)) {
+            throw new Error(`Câu hỏi số ${qNum}: Dạng Đúng/Sai yêu cầu mảng 'trueFalseStatements' chứa các phát biểu.`);
+          }
+          if (q.type === "matching" && (!q.matchingPairs || !Array.isArray(q.matchingPairs) || q.matchingPairs.length === 0)) {
+            throw new Error(`Câu hỏi số ${qNum}: Dạng ghép đôi yêu cầu mảng 'matchingPairs' chứa các cặp ghép.`);
+          }
+          if (q.correctAnswer === undefined || q.correctAnswer === null) {
+            throw new Error(`Câu hỏi số ${qNum}: Thiếu đáp án đúng 'correctAnswer'.`);
+          }
+
+          return {
+            id: q.id || `q-upload-${Date.now()}-${index}`,
+            type: q.type,
+            difficulty: q.difficulty || "medium",
+            prompt: q.prompt,
+            options: q.options || undefined,
+            correctAnswer: String(q.correctAnswer),
+            trueFalseStatements: q.trueFalseStatements || undefined,
+            matchingPairs: q.matchingPairs || undefined,
+            solution: q.solution || "Chưa có lời giải chi tiết cho câu hỏi này.",
+            hint: q.hint || undefined,
+            comment: q.comment || undefined,
+            competency: q.competency || "Năng lực giải quyết vấn đề toán học"
+          };
+        });
+
+        const difficultyLevels = Array.from(new Set(validatedQuestions.map(q => q.difficulty))) as Difficulty[];
+        const types = Array.from(new Set(validatedQuestions.map(q => q.type))) as QuestionType[];
+
+        const importedQuiz: Quiz = {
+          id: "quiz-upload-import-" + Date.now(),
+          title: parsed.title,
+          chapterId: parsed.chapterId || "chuong-1",
+          lessonId: parsed.lessonId || "bai-1",
+          difficultyLevels: difficultyLevels.length > 0 ? difficultyLevels : ["medium"],
+          questionCount: validatedQuestions.length,
+          types: types.length > 0 ? types : ["multiple_choice"],
+          questions: validatedQuestions,
+          createdAt: new Date().toISOString(),
+          createdBy: "Cô Nguyễn Hà (Upload từ file)",
+          timeLimit: parsed.timeLimit || 0,
+          schoolName: parsed.schoolName || undefined,
+          examDate: parsed.examDate || undefined,
+          assignedClasses: parsed.assignedClasses || undefined
+        };
+
+        onSaveQuiz(importedQuiz);
+        onSelectQuiz(importedQuiz);
+        alert(`Đã tải lên và nhập đề tự soạn "${importedQuiz.title}" thành công với ${validatedQuestions.length} câu hỏi!`);
+      } catch (err: any) {
+        alert(`Lỗi phân tích file đề thi: ${err.message || err}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
   
   // Print preview overlay modal state
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -211,9 +407,61 @@ export default function QuizBank({
     document.body.removeChild(link);
   };
 
+  // Helper to format math and LaTeX for Word export compatibility
+  const formatMathForWord = (text: string | null | undefined): string => {
+    if (!text) return "";
+    let s = text;
+    // Remove LaTeX block/inline markers
+    s = s.replace(/\$\$/g, "");
+    s = s.replace(/\$/g, "");
+    s = s.replace(/\\\(|\\\)/g, "");
+    s = s.replace(/\\\[|\\\]/g, "");
+
+    // Translate common LaTeX operators and symbols
+    s = s.replace(/\\in\b/g, " ∈ ");
+    s = s.replace(/\\notin\b/g, " ∉ ");
+    s = s.replace(/\\mathbb\{N\}\^\*/g, " ℕ* ");
+    s = s.replace(/\\mathbb\{N\}/g, " ℕ ");
+    s = s.replace(/\\mathbb N\b/g, " ℕ ");
+    s = s.replace(/\\mathbb\{Z\}/g, " ℤ ");
+    s = s.replace(/\\mathbb Z\b/g, " ℤ ");
+    s = s.replace(/\\mathbb\{Q\}/g, " ℚ ");
+    s = s.replace(/\\mathbb Q\b/g, " ℚ ");
+    s = s.replace(/\\mathbb\{R\}/g, " ℝ ");
+    s = s.replace(/\\mathbb R\b/g, " ℝ ");
+    s = s.replace(/\\emptyset\b/g, " ∅ ");
+    s = s.replace(/\\subset\b/g, " ⊂ ");
+    s = s.replace(/\\cap\b/g, " ∩ ");
+    s = s.replace(/\\cup\b/g, " ∪ ");
+    s = s.replace(/\\leq\b|\\le\b/g, " ≤ ");
+    s = s.replace(/\\geq\b|\\ge\b/g, " ≥ ");
+    s = s.replace(/\\neq\b|\\ne\b/g, " ≠ ");
+    s = s.replace(/\\times\b/g, " × ");
+    s = s.replace(/\\cdot\b/g, " · ");
+    s = s.replace(/\\dots\b/g, " … ");
+    s = s.replace(/\\degree\b/g, "°");
+    s = s.replace(/\\pi\b/g, "π");
+
+    // Translate fractions \frac{a}{b} -> (a/b)
+    while (s.includes("\\frac{")) {
+      s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, "($1)/($2)");
+    }
+
+    // Translate \sqrt{a} -> √(a)
+    while (s.includes("\\sqrt{")) {
+      s = s.replace(/\\sqrt\{([^{}]+)\}/g, "√($1)");
+    }
+
+    // Superscripts base^power -> base<sup>power</sup>
+    const regex = /([a-zA-Z0-9ℕℤℝ∅⊂()]+)\^(\{([^}]+)\}|\(([^)]+)\)|([a-zA-Z0-9\-+*\/]+))/g;
+    s = s.replace(regex, "$1<sup>$3$4$5</sup>");
+
+    return s;
+  };
+
   // Export to Word (.doc / .docx HTML Proxy)
-  const handleExportToWord = (quiz: Quiz) => {
-    const quizTitleHTML = `<h2 style="text-align: center; font-family: Arial, sans-serif; color: #1e40af; margin-bottom: 5px;">${quiz.title}</h2>`;
+  const handleExportToWord = (quiz: Quiz, includeAnswers: boolean = printIncludeAnswers) => {
+    const quizTitleHTML = `<h2 style="text-align: center; font-family: Arial, sans-serif; color: #1e40af; margin-bottom: 5px;">${formatMathForWord(quiz.title)}</h2>`;
     const schoolHeaderHTML = `
       <table style="width: 100%; font-family: Arial, sans-serif; font-size: 11pt; margin-bottom: 20px;">
         <tr>
@@ -241,12 +489,12 @@ export default function QuizBank({
     let questionsHTML = `<h3 style="font-family: Arial, sans-serif; border-bottom: 1px solid #1e40af; padding-bottom: 5px; color: #1e40af;">PHẦN I: ĐỀ BÀI</h3><ol style="font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6;">`;
     
     quiz.questions.forEach((q) => {
-      questionsHTML += `<li style="margin-bottom: 15px;"><strong>[${DIFFICULTY_LABELS[q.difficulty].split(" ")[0]}]</strong> ${q.prompt}`;
+      questionsHTML += `<li style="margin-bottom: 15px;"><strong>[${DIFFICULTY_LABELS[q.difficulty].split(" ")[0]}]</strong> ${formatMathForWord(q.prompt)}`;
       
       if (q.type === "multiple_choice" && q.options) {
         questionsHTML += `<table style="width: 100%; margin-top: 5px; font-size: 10pt;"><tr>`;
         q.options.forEach((opt, idx) => {
-          questionsHTML += `<td style="width: 25%;">${opt}</td>`;
+          questionsHTML += `<td style="width: 25%;">${formatMathForWord(opt)}</td>`;
         });
         questionsHTML += `</tr></table>`;
       }
@@ -255,7 +503,7 @@ export default function QuizBank({
         questionsHTML += `<table style="width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 10pt;">`;
         questionsHTML += `<tr style="background-color: #f1f5f9;"><th style="border: 1.5px solid #cbd5e1; padding: 4px; text-align: left;">Phát biểu</th><th style="border: 1.5px solid #cbd5e1; padding: 4px; width: 60px;">Đúng</th><th style="border: 1.5px solid #cbd5e1; padding: 4px; width: 60px;">Sai</th></tr>`;
         q.trueFalseStatements.forEach((tf) => {
-          questionsHTML += `<tr><td style="border: 1.5px solid #cbd5e1; padding: 4px;">${tf.statement}</td><td style="border: 1.5px solid #cbd5e1; padding: 4px; text-align: center;">[   ]</td><td style="border: 1.5px solid #cbd5e1; padding: 4px; text-align: center;">[   ]</td></tr>`;
+          questionsHTML += `<tr><td style="border: 1.5px solid #cbd5e1; padding: 4px;">${formatMathForWord(tf.statement)}</td><td style="border: 1.5px solid #cbd5e1; padding: 4px; text-align: center;">[   ]</td><td style="border: 1.5px solid #cbd5e1; padding: 4px; text-align: center;">[   ]</td></tr>`;
         });
         questionsHTML += `</table>`;
       }
@@ -264,7 +512,7 @@ export default function QuizBank({
         questionsHTML += `<table style="width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 10pt;">`;
         questionsHTML += `<tr style="background-color: #f1f5f9;"><th style="border: 1.5px solid #cbd5e1; padding: 4px; text-align: left; width: 50%;">Cột A</th><th style="border: 1.5px solid #cbd5e1; padding: 4px; text-align: left; width: 50%;">Cột B (Cần ghép nối)</th></tr>`;
         q.matchingPairs.forEach((pair) => {
-          questionsHTML += `<tr><td style="border: 1.5px solid #cbd5e1; padding: 4px;">${pair.left}</td><td style="border: 1.5px solid #cbd5e1; padding: 4px;">${pair.right}</td></tr>`;
+          questionsHTML += `<tr><td style="border: 1.5px solid #cbd5e1; padding: 4px;">${formatMathForWord(pair.left)}</td><td style="border: 1.5px solid #cbd5e1; padding: 4px;">${formatMathForWord(pair.right)}</td></tr>`;
         });
         questionsHTML += `</table>`;
       }
@@ -275,14 +523,14 @@ export default function QuizBank({
     questionsHTML += `</ol>`;
 
     let answersHTML = "";
-    if (printIncludeAnswers) {
-      answersHTML += `<br/><h3 style="font-family: Arial, sans-serif; border-b: 1px solid #f97316; padding-bottom: 5px; color: #f97316; page-break-before: always;">PHẦN II: HƯỚNG DẪN GIẢI VÀ ĐÁP ÁN CHI TIẾT</h3><ol style="font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6;">`;
+    if (includeAnswers) {
+      answersHTML += `<br/><h3 style="font-family: Arial, sans-serif; border-bottom: 1.5px solid #f97316; padding-bottom: 5px; color: #f97316; page-break-before: always;">PHẦN II: HƯỚNG DẪN GIẢI VÀ ĐÁP ÁN CHI TIẾT</h3><ol style="font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6;">`;
       quiz.questions.forEach((q) => {
-        answersHTML += `<li style="margin-bottom: 20px;"><strong>Câu hỏi:</strong> ${q.prompt}<br/>`;
-        answersHTML += `<strong style="color: #16a34a;">Đáp án đúng:</strong> ${q.correctAnswer}<br/>`;
-        answersHTML += `<strong>Hướng dẫn giải chi tiết:</strong> ${q.solution}<br/>`;
-        if (q.hint) answersHTML += `<em>* Gợi ý học sinh: ${q.hint}</em><br/>`;
-        answersHTML += `<em>* Đánh giá năng lực: ${q.competency}</em><br/>`;
+        answersHTML += `<li style="margin-bottom: 20px;"><strong>Câu hỏi:</strong> ${formatMathForWord(q.prompt)}<br/>`;
+        answersHTML += `<strong style="color: #16a34a;">Đáp án đúng:</strong> ${formatMathForWord(q.correctAnswer)}<br/>`;
+        answersHTML += `<strong>Hướng dẫn giải chi tiết:</strong> ${formatMathForWord(q.solution)}<br/>`;
+        if (q.hint) answersHTML += `<em>* Gợi ý học sinh: ${formatMathForWord(q.hint)}</em><br/>`;
+        answersHTML += `<em>* Đánh giá năng lực: ${formatMathForWord(q.competency)}</em><br/>`;
         answersHTML += `</li>`;
       });
       answersHTML += `</ol>`;
@@ -335,11 +583,31 @@ export default function QuizBank({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Tải Đề Mẫu Word (.doc) */}
+          <button
+            onClick={handleDownloadWordTemplate}
+            className="rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900 text-indigo-700 dark:text-indigo-300 font-semibold text-xs px-4 py-2.5 shadow-md flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
+            title="Tải đề thi mẫu định dạng file Word (.doc) về máy"
+          >
+            <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" /> Tải đề mẫu Word (.doc)
+          </button>
+
+          {/* Upload Đề Tự Soạn JSON */}
+          <label className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2.5 shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0" title="Tải lên file đề thi JSON tự soạn của bạn">
+            <Upload className="h-4 w-4" /> Upload đề tự soạn
+            <input 
+              type="file" 
+              accept=".json" 
+              onChange={handleUploadJSONQuiz} 
+              className="hidden" 
+            />
+          </label>
+
           <button
             onClick={() => setShowSampleTemplatesModal(true)}
             className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs px-4 py-2.5 shadow-md flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
           >
-            <Download className="h-4 w-4" /> Tải đề từ mẫu
+            <Download className="h-4 w-4" /> Chọn từ kho đề mẫu
           </button>
           
           <button
@@ -559,6 +827,22 @@ export default function QuizBank({
                     title="In ấn PDF A4"
                   >
                     <Printer className="h-3.5 w-3.5" /> Xuất & In Đề
+                  </button>
+
+                  <button
+                    onClick={() => handleExportToWord(selectedQuiz, true)}
+                    className="inline-flex items-center gap-1 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 hover:bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 font-semibold text-xs px-3 py-2 transition-all active:scale-95"
+                    title="Tải nhanh đề thi thành file Word (.doc) bao gồm cả đề bài và lời giải chi tiết"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-indigo-550 dark:text-indigo-400" /> Tải file Word (.doc)
+                  </button>
+
+                  <button
+                    onClick={() => handleExportToJSON(selectedQuiz)}
+                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs px-3 py-2"
+                    title="Xuất đề thi ra file JSON để lưu trữ hoặc chỉnh sửa"
+                  >
+                    <FileJson className="h-3.5 w-3.5 text-blue-500" /> Xuất file JSON
                   </button>
 
                   <button
@@ -1203,12 +1487,22 @@ export default function QuizBank({
                       </p>
                     </div>
                     
-                    <button
-                      onClick={() => handleImportSampleQuiz(sampleQuiz)}
-                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all rounded-xl shadow-sm self-start md:self-auto shrink-0"
-                    >
-                      <Plus className="h-4 w-4" /> Nhập đề mẫu
-                    </button>
+                    <div className="flex flex-wrap gap-2 self-start md:self-auto shrink-0">
+                      <button
+                        onClick={() => handleExportToWord(sampleQuiz as Quiz, true)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 active:scale-95 transition-all rounded-xl border border-slate-200 dark:border-slate-700"
+                        title="Tải nhanh đề thi mẫu này về máy dưới dạng file Word (.doc) có đầy đủ lời giải"
+                      >
+                        <FileText className="h-3.5 w-3.5 text-indigo-550 dark:text-indigo-400" /> Tải file Word
+                      </button>
+
+                      <button
+                        onClick={() => handleImportSampleQuiz(sampleQuiz)}
+                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all rounded-xl shadow-sm"
+                      >
+                        <Plus className="h-4 w-4" /> Nhập đề mẫu
+                      </button>
+                    </div>
                   </div>
                 );
               })}

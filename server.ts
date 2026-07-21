@@ -115,14 +115,16 @@ app.post("/api/generate-questions", async (req, res) => {
     const ai = getGeminiClient();
 
     // Construct detailed prompt
-    const systemInstruction = `Bạn là một Chuyên gia sư phạm Toán THCS hàng đầu Việt Nam, am hiểu sâu sắc Chương trình GDPT 2018 môn Toán lớp 6 (Bộ sách Kết nối tri thức với cuộc sống).
-Nhiệm vụ của bạn là tạo đề ôn luyện hoặc kiểm tra môn Toán lớp 6 bám sát kiến thức SGK Kết nối tri thức.
+    const systemInstruction = `Bạn là một Chuyên gia sư phạm Toán THCS hàng đầu Việt Nam, am hiểu sâu sắc Chương trình GDPT 2018 môn Toán lớp 6.
+Nhiệm vụ của bạn là tạo đề ôn luyện hoặc kiểm tra môn Toán lớp 6 bám sát kiến thức môn học.
 Mỗi câu hỏi được sinh ra phải đạt các yêu cầu sau:
 1. TẬP TRUNG TÍNH TOÁN VÀ THỰC HÀNH: Đề bài chủ yếu rèn luyện kỹ năng tính toán, thực hiện phép tính, tìm x, tính nhanh, ước lượng, tìm ước chung, bội chung... Tuyệt đối tránh các câu hỏi lý thuyết suông hoặc định nghĩa (Ví dụ không hỏi "Định nghĩa lũy thừa là gì", không yêu cầu phát biểu lý thuyết hay chọn khẳng định lý thuyết đúng/sai). Biến đổi mọi kiến thức thành các bài tập tính toán cụ thể.
-2. Đúng lứa tuổi: Sử dụng ngôn từ trong sáng, dễ hiểu, phù hợp với trình độ học sinh lớp 6 tại Việt Nam. Không ra đề quá khó, không dùng các ký hiệu toán học chưa được học ở lớp 6.
-3. Không lặp lại: Không sinh trùng câu hỏi hoặc ý tưởng trùng lắp. Các câu hỏi phân hóa rõ ràng.
-4. Tính thực tế và số liệu tính toán: Đối với các câu hỏi vận dụng hoặc tự luận, ưu tiên các bài toán thực tế lồng ghép ngữ cảnh đời sống Việt Nam nhưng phải có yêu cầu tính toán ra con số cụ thể, rõ ràng từng bước tính.
-5. Đúng định dạng JSON được yêu cầu dưới đây.`;
+2. TỰ SÁNG TÁC MỚI, TUYỆT ĐỐI KHÔNG SAO CHÉP SGK: Tất cả các câu hỏi phải được tự thiết kế/sáng tác mới với số liệu ngẫu nhiên, tình huống mới dựa trên chủ đề bài học. Tuyệt đối không được lấy nguyên văn hay sao chép bất kỳ câu hỏi nào trực tiếp từ Sách giáo khoa (SGK), Sách bài tập (SBT) hay các đề thi cũ.
+3. HIỂN THỊ ĐẦY ĐỦ ĐỀ BÀI, TUYỆT ĐỐI KHÔNG TRÍCH DẪN NGUỒN: Nội dung câu hỏi (trường "prompt") phải hiển thị đầy đủ, chi tiết, rõ ràng mọi số liệu, giả thiết để học sinh có thể tự tính toán độc lập. TUYỆT ĐỐI KHÔNG trích dẫn nguồn (Ví dụ: KHÔNG ghi "Bài 1.12 trang 15 SGK...", "Theo sách giáo khoa Kết nối tri thức...", "Trích đề thi học kỳ..."). Hãy ẩn hoàn toàn mọi chỉ dẫn về nguồn gốc câu hỏi hay sách giáo khoa, chỉ hiển thị đề bài toán học thuần túy.
+4. Đúng lứa tuổi: Sử dụng ngôn từ trong sáng, dễ hiểu, phù hợp với trình độ học sinh lớp 6 tại Việt Nam. Không ra đề quá khó, không dùng các ký hiệu toán học chưa được học ở lớp 6.
+5. Không lặp lại: Không sinh trùng câu hỏi hoặc ý tưởng trùng lắp. Các câu hỏi phân hóa rõ ràng.
+6. Tính thực tế và số liệu tính toán: Đối với các câu hỏi vận dụng hoặc tự luận, ưu tiên các bài toán thực tế lồng ghép ngữ cảnh đời sống Việt Nam nhưng phải có yêu cầu tính toán ra con số cụ thể, rõ ràng từng bước tính.
+7. Đúng định dạng JSON được yêu cầu dưới đây.`;
 
     const userPrompt = `Hãy tạo một bộ gồm đúng ${questionCount} câu hỏi toán học thực hành tính toán thuộc:
 - Chương: ${chapterTitle || "Toán 6"}
@@ -133,6 +135,8 @@ Mỗi câu hỏi được sinh ra phải đạt các yêu cầu sau:
 Các yêu cầu kỹ thuật đối với đề bài:
 - Tổng số lượng câu hỏi cần tạo: ${questionCount} câu.
 - CHỈ tập trung vào rèn luyện KỸ NĂNG TÍNH TOÁN và giải bài tập thực hành số học/hình học (thực hiện phép tính, tìm x, tìm ước/bội, tính diện tích/chu vi, bài toán có lời văn cần tính toán số liệu cụ thể). TRÁNH các câu hỏi kiểm tra định nghĩa lý thuyết, phát biểu khái niệm hoặc câu hỏi đúng/sai mang tính lý thuyết suông.
+- KHÔNG LẤY CÂU HỎI TRONG SÁCH GIÁO KHOA: Phải tự tạo câu hỏi với số liệu mới, bối cảnh thực tế mới, cách đặt vấn đề mới. Tuyệt đối không sao chép nguyên văn từ bất kỳ bộ SGK, SBT hay sách tham khảo nào.
+- HIỂN THỊ ĐẦY ĐỦ NỘI DUNG, KHÔNG TRÍCH DẪN NGUỒN: Toàn bộ nội dung câu hỏi phải được viết rõ ràng và chi tiết trong thuộc tính "prompt". Tuyệt đối không ghi các thông tin trích dẫn nguồn (ví dụ: cấm ghi "Bài 1.5 SGK...", "Theo SGK Kết nối tri thức...", "Sách bài tập toán 6 trang 25"...).
 - Mức độ câu hỏi (phân bổ ngẫu nhiên hoặc chia đều theo các mức sau): ${difficultyLevels.join(", ")}. (easy = Nhận biết, medium = Thông hiểu, hard = Vận dụng, very_hard = Vận dụng cao).
 - Các dạng bài được phép tạo: ${types.join(", ")}. (multiple_choice = Trắc nghiệm, true_false = Đúng Sai, matching = Ghép đôi, fill_blank = Điền số, essay = Tự luận/Giải toán thực tế).
 ${customPrompt ? `- Yêu cầu thêm từ giáo viên: "${customPrompt}"` : ""}
