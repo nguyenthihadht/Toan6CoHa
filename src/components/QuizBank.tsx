@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import mammoth from "mammoth";
 import { Quiz, Question, QuestionType, Difficulty, Student, StudentSubmission } from "../types";
 import { Chapter } from "../data/curriculum";
 import { MOCK_QUIZZES } from "../data/mockQuizzes";
@@ -26,7 +27,10 @@ import {
   Plus,
   Sparkles,
   FileJson,
-  Upload
+  Upload,
+  FileUp,
+  Loader2,
+  CheckCircle2
 } from "lucide-react";
 import { renderMath } from "../utils/mathFormatter";
 
@@ -361,6 +365,245 @@ export default function QuizBank({
     reader.readAsText(file);
     e.target.value = "";
   };
+
+  // Upload & AI Document Parse Modal state
+  const [showUploadDocumentModal, setShowUploadDocumentModal] = useState(false);
+  const [uploadRawText, setUploadRawText] = useState("");
+  const [uploadedFileBase64, setUploadedFileBase64] = useState<string | null>(null);
+  const [uploadedFileMimeType, setUploadedFileMimeType] = useState<string | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [isParsingDocument, setIsParsingDocument] = useState(false);
+  const [parseErrorMessage, setParseErrorMessage] = useState<string | null>(null);
+  const [parsedResultQuiz, setParsedResultQuiz] = useState<Quiz | null>(null);
+
+  const SAMPLE_EXAM_DOCUMENT = `BÀI 12. ƯỚC CHUNG. ƯỚC CHUNG LỚN NHẤT. 
+
+I – MỨC ĐỘ NHẬN BIẾT
+Câu 1. x là ước chung của số a và b nếu
+A. x ∈ Ư(a) và x ∉ Ư(b)
+B. x ⊂ Ư(a) và x ⊂ Ư(b)
+C. x ∈ Ư(a) và x ∈ Ư(b)
+D. x ∉ Ư(a) và x ∉ Ư(b)
+
+Câu 2. Số nào sau đây không phải là ước chung của 12 và 16?
+A. 1
+B. 2
+C. 3
+D. 4
+
+Câu 3. Khẳng định nào sau đây là đúng ?
+A. 5 ∈ ƯC (4;6;8)
+B. 2 ∈ ƯC (4;6;8)
+C. 3 ∈ ƯC (4;6;8)
+D. 4 ∈ ƯC (4;6;8)
+
+Câu 4. Số nào sau đây vừa là ước của 75, vừa là ước của 63?
+A. 7.
+B. 3.
+C. 6.
+D. 4.
+
+Câu 5. Trong các số sau số nào không phải là ước chung của 12 và 30?
+A. 2.
+B. 3.
+C. 6.
+D. 4.
+
+II – MỨC ĐỘ THÔNG HIỂU
+Câu 6. Ước chung của 9 và 15 là
+A. {1;3}
+B. {0;3}
+C. {1;5}
+D. {1;3;9}
+
+Câu 7. Tập hợp ƯC (4; 6) bằng
+A. {1;2}
+B. {0;2}
+C. {1;3}
+D. {1;3;2}
+
+Câu 8. ƯCLN (24,36) bằng
+A. 24
+B. 12
+C. 36
+D. 6
+
+Câu 9. ƯCLN (18;60) bằng
+A. 6.
+B. 36.
+C. 12.
+D. 30
+
+Câu 10. Tập hợp ƯC (24,36) bằng
+A. {1; 2; 3; 4; 6; 12}
+B. {1; 2; 3; 4; 6}
+
+III – MỨC ĐỘ VẬN DỤNG
+Câu 11. Trong các tập hợp sau, tập hợp nào là tập hợp ước chung của 12, 15, 18?
+A. {1;3;6}
+B. {0;180;360;...}
+C. {1;3}
+D. {0;36;72;...}
+
+Câu 12. Khẳng định nào sau đây là đúng?
+A. ƯC (12;24) = {1;2;3;4;6;12}
+B. ƯC (12;24) = {1;2;3;8;12}
+C. ƯC (12;24) = {1;2;8;12}
+D. ƯC (12;24) = {2;3;4;6;12}
+
+Câu 13. ƯCLN (16,80,32) bằng:
+A. 16
+B. 8
+C. 90
+D. 150
+
+Câu 14. ƯCLN (2018,2019,2020) bằng:
+A. 1009
+B. 2
+C. 1
+D. 1010
+
+Câu 15. Cho a = 2^4 . 3^3 . 5^2 và b = 2^2 . 3 . 5^2 . 7 khi đó ƯCLN (a,b) bằng
+A. 100
+B. 900
+C. 300
+D. 350
+
+BẢNG ĐÁP ÁN BÀI TẬP TRẮC NGHIỆM
+1 2 3 4 5 6 7 8 9 10
+C C B B D A A B A A
+11 12 13 14 15
+C A A C C`;
+
+  const handleWordOrTextFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    
+    if (fileName.endsWith(".pdf")) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (dataUrl) {
+          const base64Data = dataUrl.split(",")[1];
+          setUploadedFileBase64(base64Data);
+          setUploadedFileMimeType("application/pdf");
+          setUploadedFileName(file.name);
+          setUploadRawText(`[Đã đính kèm file PDF: ${file.name}]\nAI sẽ đọc trực tiếp toàn bộ trang, hình ảnh, công thức và Bảng Đáp Án từ file PDF này.`);
+        }
+      };
+      reader.readAsDataURL(file);
+    } else if (fileName.endsWith(".docx")) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        setUploadedFileBase64(null);
+        setUploadedFileMimeType(null);
+        setUploadedFileName(file.name);
+        if (result.value) {
+          setUploadRawText(result.value);
+        } else {
+          alert("Không thể trích xuất văn bản từ file docx này. Vui lòng mở file Word và copy/dán văn bản trực tiếp.");
+        }
+      } catch (err: any) {
+        alert("Lỗi khi đọc file Word (.docx): " + (err.message || err));
+      }
+    } else if (fileName.endsWith(".txt") || fileName.endsWith(".json")) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setUploadedFileBase64(null);
+        setUploadedFileMimeType(null);
+        setUploadedFileName(file.name);
+        setUploadRawText(event.target?.result as string || "");
+      };
+      reader.readAsText(file);
+    } else {
+      alert("Hệ thống hỗ trợ file PDF (.pdf), file Word (.docx) hoặc file Text (.txt). Thầy cô cũng có thể mở file Word/PDF và dán trực tiếp vào khung văn bản!");
+    }
+    e.target.value = "";
+  };
+
+  const handleAIParseDocument = async () => {
+    if (!uploadRawText.trim() && !uploadedFileBase64) {
+      alert("Vui lòng dán hoặc tải lên nội dung/file đề thi trước!");
+      return;
+    }
+
+    setIsParsingDocument(true);
+    setParseErrorMessage(null);
+    setParsedResultQuiz(null);
+
+    try {
+      const res = await fetch("/api/parse-exam-document", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawText: uploadRawText,
+          fileBase64: uploadedFileBase64,
+          fileMimeType: uploadedFileMimeType
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Không thể phân tích đề thi bằng AI.");
+      }
+
+      const data = await res.json();
+      if (!data.questions || !Array.isArray(data.questions) || data.questions.length === 0) {
+        throw new Error("Không trích xuất được câu hỏi nào từ văn bản đã cho.");
+      }
+
+      const validatedQuestions: Question[] = data.questions.map((q: any, idx: number) => ({
+        id: `q-parsed-${Date.now()}-${idx}`,
+        type: q.type || "multiple_choice",
+        difficulty: q.difficulty || "medium",
+        prompt: q.prompt,
+        options: q.options || undefined,
+        correctAnswer: q.correctAnswer || "Chưa xác định",
+        trueFalseStatements: q.trueFalseStatements || undefined,
+        matchingPairs: q.matchingPairs || undefined,
+        solution: q.solution || "Lời giải chi tiết cho câu hỏi này.",
+        hint: q.hint || undefined,
+        competency: q.competency || "Năng lực giải quyết vấn đề toán học"
+      }));
+
+      const difficultyLevels = Array.from(new Set(validatedQuestions.map(q => q.difficulty))) as Difficulty[];
+      const types = Array.from(new Set(validatedQuestions.map(q => q.type))) as QuestionType[];
+
+      const newQuiz: Quiz = {
+        id: `quiz-parsed-${Date.now()}`,
+        title: data.title || (uploadedFileName ? `Đề thi từ ${uploadedFileName}` : "Đề thi phân tích từ file Word/PDF"),
+        chapterId: "chuong-1",
+        lessonId: "bai-12",
+        difficultyLevels: difficultyLevels.length > 0 ? difficultyLevels : ["medium"],
+        questionCount: validatedQuestions.length,
+        types: types.length > 0 ? types : ["multiple_choice"],
+        questions: validatedQuestions,
+        createdAt: new Date().toISOString(),
+        createdBy: "Giáo viên (AI phân tích từ file PDF/Word)",
+        timeLimit: data.timeLimit || 45
+      };
+
+      setParsedResultQuiz(newQuiz);
+    } catch (err: any) {
+      console.error("Lỗi AI Parse Document:", err);
+      setParseErrorMessage(err.message || "Xảy ra lỗi khi phân tích văn bản đề thi.");
+    } finally {
+      setIsParsingDocument(false);
+    }
+  };
+
+  const handleConfirmSaveParsedQuiz = () => {
+    if (!parsedResultQuiz) return;
+    onSaveQuiz(parsedResultQuiz);
+    onSelectQuiz(parsedResultQuiz);
+    setShowUploadDocumentModal(false);
+    setParsedResultQuiz(null);
+    setUploadRawText("");
+    alert(`Đã lưu thành công đề thi "${parsedResultQuiz.title}" gồm ${parsedResultQuiz.questionCount} câu hỏi vào Ngân hàng đề của bạn!`);
+  };
   
   // Print preview overlay modal state
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -583,18 +826,30 @@ export default function QuizBank({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Upload & Parse PDF/Word/Text Exam Document with AI */}
+          <button
+            onClick={() => {
+              setShowUploadDocumentModal(true);
+              setParseErrorMessage(null);
+            }}
+            className="rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs px-4 py-2.5 shadow-md flex items-center gap-1.5 active:scale-95 transition-all shrink-0 ring-2 ring-purple-300 dark:ring-purple-900"
+            title="Tải file PDF (.pdf), Word (.docx) hoặc dán văn bản đề thi để AI tự động trích xuất thành đề thi"
+          >
+            <Sparkles className="h-4 w-4 text-purple-200" /> Upload Đề PDF / Word / Text (AI Trích xuất)
+          </button>
+
           {/* Tải Đề Mẫu Word (.doc) */}
           <button
             onClick={handleDownloadWordTemplate}
             className="rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900 text-indigo-700 dark:text-indigo-300 font-semibold text-xs px-4 py-2.5 shadow-md flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
             title="Tải đề thi mẫu định dạng file Word (.doc) về máy"
           >
-            <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" /> Tải đề mẫu Word (.doc)
+            <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" /> Tải đề mẫu Word
           </button>
 
           {/* Upload Đề Tự Soạn JSON */}
-          <label className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-4 py-2.5 shadow-md flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0" title="Tải lên file đề thi JSON tự soạn của bạn">
-            <Upload className="h-4 w-4" /> Upload đề tự soạn
+          <label className="rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 active:scale-95 cursor-pointer transition-all shrink-0" title="Tải lên file đề thi JSON tự soạn">
+            <Upload className="h-4 w-4" /> JSON
             <input 
               type="file" 
               accept=".json" 
@@ -607,7 +862,7 @@ export default function QuizBank({
             onClick={() => setShowSampleTemplatesModal(true)}
             className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs px-4 py-2.5 shadow-md flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
           >
-            <Download className="h-4 w-4" /> Chọn từ kho đề mẫu
+            <Download className="h-4 w-4" /> Đề Mẫu
           </button>
           
           <button
@@ -1518,6 +1773,238 @@ export default function QuizBank({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Upload Document Modal (Word / Text AI Extraction) */}
+      {showUploadDocumentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto no-print">
+          <div className="relative w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden my-auto">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-purple-50 via-indigo-50 to-white dark:from-purple-950/30 dark:via-indigo-950/20 dark:to-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-purple-600 text-white shadow-md">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-slate-900 dark:text-slate-100 text-base md:text-lg">
+                    Tải lên & AI Phân tích Đề thi (Word / Text / PDF)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Tải file Word (.docx) hoặc dán trực tiếp văn bản đề thi để AI tự động trích xuất câu hỏi, mức độ nhận thức và Bảng Đáp Án.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUploadDocumentModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1">
+
+              {!parsedResultQuiz ? (
+                <>
+                  {/* File Upload zone & Quick Sample action */}
+                  <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                    <label className="flex-1 flex items-center justify-center gap-2 p-3 border-2 border-dashed border-purple-300 dark:border-purple-800 hover:border-purple-500 bg-purple-50/50 dark:bg-purple-950/20 rounded-2xl cursor-pointer transition-all group">
+                      <FileUp className="h-5 w-5 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+                        {uploadedFileName ? `Đã chọn: ${uploadedFileName}` : "Chọn file PDF (.pdf), Word (.docx) hoặc Text (.txt)"}
+                      </span>
+                      <input
+                        type="file"
+                        accept=".pdf,.docx,.doc,.txt,.json"
+                        onChange={handleWordOrTextFileChange}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {uploadedFileBase64 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadedFileBase64(null);
+                          setUploadedFileMimeType(null);
+                          setUploadedFileName(null);
+                          setUploadRawText("");
+                        }}
+                        className="px-3 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-semibold border border-rose-200 dark:border-rose-900 transition-all shrink-0"
+                      >
+                        Xóa file PDF đã đính kèm
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadedFileBase64(null);
+                        setUploadedFileMimeType(null);
+                        setUploadedFileName(null);
+                        setUploadRawText(SAMPLE_EXAM_DOCUMENT);
+                        setParseErrorMessage(null);
+                      }}
+                      className="px-4 py-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0"
+                    >
+                      <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" /> Dán đề mẫu "Ước Chung & ƯCLN" (15 câu)
+                    </button>
+                  </div>
+
+                  {/* Textarea for pasting raw text */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Nội dung văn bản đề thi (hoặc thông tin file PDF/Word đính kèm):
+                    </label>
+                    <textarea
+                      value={uploadRawText}
+                      onChange={(e) => setUploadRawText(e.target.value)}
+                      placeholder="Dán toàn bộ văn bản đề thi tại đây (Ví dụ: Tiêu đề đề thi, Mức độ Nhận biết / Thông hiểu / Vận dụng, nội dung các Câu 1, Câu 2... và BẢNG ĐÁP ÁN TRẮC NGHIỆM ở cuối nếu có)..."
+                      className="w-full h-64 p-4 text-xs font-mono border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none shadow-inner"
+                    />
+                    <div className="mt-1 flex justify-between items-center text-[11px] text-slate-400">
+                      <span>Mẹo: Với file PDF, AI Gemini sẽ đọc trực tiếp dữ liệu OCR hình ảnh/chữ/công thức và tự khớp Bảng Đáp Án ở trang cuối.</span>
+                      <span>{uploadRawText.length} ký tự</span>
+                    </div>
+                  </div>
+
+                  {parseErrorMessage && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-xs flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                      <span>{parseErrorMessage}</span>
+                    </div>
+                  )}
+
+                  {/* Parse Action Button */}
+                  <div className="pt-2 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowUploadDocumentModal(false)}
+                      className="px-5 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 rounded-xl"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isParsingDocument || !uploadRawText.trim()}
+                      onClick={handleAIParseDocument}
+                      className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-500/20 flex items-center gap-2 active:scale-95 transition-all"
+                    >
+                      {isParsingDocument ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Đang phân tích cấu trúc & đối chiếu Bảng Đáp Án...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4" /> AI Phân tích & Trích xuất Đề
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Preview Parsed Result Screen */
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                        AI đã trích xuất thành công {parsedResultQuiz.questionCount} câu hỏi!
+                      </h4>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
+                        Kiểm tra lại xem nội dung câu hỏi và Bảng Đáp Án đã được khớp chính xác chưa trước khi lưu vào Ngân hàng đề thi của bạn.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tiêu đề đề thi:</div>
+                    <div className="text-base font-bold text-slate-900 dark:text-slate-100">
+                      {parsedResultQuiz.title}
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1 text-xs text-slate-600 dark:text-slate-400">
+                      <span className="px-2.5 py-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 font-medium">
+                        ⏱️ Thời gian: {parsedResultQuiz.timeLimit || 45} phút
+                      </span>
+                      <span className="px-2.5 py-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 font-medium">
+                        📊 Mức độ: {parsedResultQuiz.difficultyLevels.map(d => DIFFICULTY_LABELS[d]).join(", ")}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* List of Questions Preview */}
+                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
+                    <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                      Danh sách {parsedResultQuiz.questions.length} câu hỏi đã bóc tách:
+                    </div>
+
+                    {parsedResultQuiz.questions.map((q, idx) => (
+                      <div key={q.id} className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                            Câu {idx + 1}: [{DIFFICULTY_LABELS[q.difficulty]}]
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 font-mono">
+                            {q.type}
+                          </span>
+                        </div>
+
+                        <div className="font-medium text-slate-800 dark:text-slate-200">
+                          {renderMath(q.prompt)}
+                        </div>
+
+                        {q.options && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-2 text-slate-600 dark:text-slate-400">
+                            {q.options.map((opt, oIdx) => (
+                              <div
+                                key={oIdx}
+                                className={`p-1.5 rounded ${
+                                  opt === q.correctAnswer || q.correctAnswer?.includes(opt)
+                                    ? "bg-emerald-100 dark:bg-emerald-950/60 font-semibold text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                                    : "bg-slate-50 dark:bg-slate-800/50"
+                                }`}
+                              >
+                                {renderMath(opt)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-950/20 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-900/40 text-[11px]">
+                          <strong>Đáp án đúng:</strong> {renderMath(q.correctAnswer)}<br />
+                          <strong>Lời giải AI:</strong> {renderMath(q.solution)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={() => setParsedResultQuiz(null)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl"
+                    >
+                      ← Phân tích lại văn bản khác
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleConfirmSaveParsedQuiz}
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 flex items-center gap-2 active:scale-95 transition-all"
+                    >
+                      <Check className="h-4 w-4" /> Xác nhận & Lưu vào Ngân Hàng Đề Thi
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
           </div>
         </div>
       )}

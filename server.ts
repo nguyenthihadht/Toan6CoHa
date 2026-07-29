@@ -248,6 +248,126 @@ LƯU Ý QUAN TRỌNG:
   }
 });
 
+// API Route: AI Parse Raw Exam Document Text or PDF/Word File
+app.post("/api/parse-exam-document", async (req, res) => {
+  try {
+    const { rawText, fileBase64, fileMimeType } = req.body;
+
+    if (!rawText && !fileBase64) {
+      return res.status(400).json({
+        error: "Thiếu nội dung văn bản hoặc file PDF/Word đề thi cần phân tích.",
+      });
+    }
+
+    const ai = getGeminiClient();
+
+    const systemInstruction = `Bạn là một chuyên gia phân tích và trích xuất đề thi môn Toán cấp 2 (Lớp 6) hàng đầu.
+Nhiệm vụ của bạn là tiếp nhận tài liệu/văn bản đề thi do giáo viên tải lên (từ file PDF, Word, hoặc dán trực tiếp), phân tích tiêu đề đề thi, các phần mức độ nhận thức (Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao), các câu hỏi trắc nghiệm A/B/C/D (hoặc Đúng/Sai, Ghép cột, Tự luận), và tự động đối chiếu với bảng đáp án ở cuối đề (hoặc đáp án trong bài) để ghép đáp án đúng và sinh lời giải chi tiết chuẩn xác cho từng câu.`;
+
+    const jsonInstructions = `Hãy phân tích tài liệu và trích xuất toàn bộ cấu trúc đề thi, trả về định dạng JSON theo đúng schema sau:
+- 'title': Tiêu đề đề thi (Ví dụ: "BÀI 12. ƯỚC CHUNG. ƯỚC CHUNG LỚN NHẤT.").
+- 'timeLimit': Thời gian làm bài tính bằng phút (mặc định 45 nếu không đề cập).
+- 'questions': Mảng các câu hỏi trích xuất được.
+   Với mỗi câu:
+   + 'type': "multiple_choice" (Trắc nghiệm 4 phương án), "true_false" (Đúng / Sai), "matching" (Ghép nối), "fill_blank" (Điền đáp số), hoặc "essay" (Tự luận).
+   + 'difficulty': "easy" (Nhận biết / Mức 1), "medium" (Thông hiểu / Mức 2), "hard" (Vận dụng / Mức 3), "very_hard" (Vận dụng cao / Mức 4).
+   + 'prompt': Nội dung câu hỏi (chỉ lấy phần câu hỏi, giữ lại công thức ký hiệu toán học như ∈, ∉, ⊂, Ư(a), ƯC, ƯCLN, số mũ...).
+   + 'options': Mảng các phương án ["A. ...", "B. ...", "C. ...", "D. ..."] (nếu type là multiple_choice).
+   + 'correctAnswer': Phương án đúng chính xác. Hãy tra cứu BẢNG ĐÁP ÁN ở cuối văn bản/trang cuối (nếu có) để lấy chữ cái đáp án tương ứng với số thứ tự câu hỏi và ghi kèm nội dung phương án đầy đủ (Ví dụ: "C. x ∈ Ư(a) và x ∈ Ư(b)").
+   + 'solution': Lời giải toán chi tiết, giải thích rõ ràng tại sao chọn đáp án đó.
+   + 'competency': Năng lực toán học (Ví dụ: "Năng lực tư duy và lập luận toán học", "Năng lực giải quyết vấn đề toán học", "Năng lực tính toán").`;
+
+    let contentsParam: any;
+    if (fileBase64 && fileMimeType) {
+      contentsParam = [
+        {
+          inlineData: {
+            mimeType: fileMimeType,
+            data: fileBase64
+          }
+        },
+        {
+          text: `Hãy phân tích tài liệu đề thi PDF/Word được đính kèm ở trên và thực hiện nhiệm vụ:\n${jsonInstructions}`
+        }
+      ];
+    } else {
+      contentsParam = `Hãy phân tích và trích xuất toàn bộ cấu trúc đề thi từ đoạn văn bản thô sau đây:\n\n[VĂN BẢN ĐỀ THI TRÍCH XUẤT]\n${(rawText || "").slice(0, 30000)}\n\n${jsonInstructions}`;
+    }
+
+    const response = await generateContentWithRetry(ai, {
+      model: "gemini-3.5-flash",
+      contents: contentsParam,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          required: ["title", "questions"],
+          properties: {
+            title: { type: Type.STRING },
+            timeLimit: { type: Type.NUMBER },
+            questions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                required: ["type", "difficulty", "prompt", "correctAnswer", "solution"],
+                properties: {
+                  type: { type: Type.STRING },
+                  difficulty: { type: Type.STRING },
+                  prompt: { type: Type.STRING },
+                  options: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING }
+                  },
+                  correctAnswer: { type: Type.STRING },
+                  trueFalseStatements: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      required: ["id", "statement", "answer"],
+                      properties: {
+                        id: { type: Type.STRING },
+                        statement: { type: Type.STRING },
+                        answer: { type: Type.BOOLEAN }
+                      }
+                    }
+                  },
+                  matchingPairs: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      required: ["id", "left", "right"],
+                      properties: {
+                        id: { type: Type.STRING },
+                        left: { type: Type.STRING },
+                        right: { type: Type.STRING }
+                      }
+                    }
+                  },
+                  solution: { type: Type.STRING },
+                  hint: { type: Type.STRING },
+                  competency: { type: Type.STRING }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) {
+      throw new Error("Mô hình AI trích xuất đề thi phản hồi rỗng.");
+    }
+
+    const data = parseRobustJson(text);
+    return res.json(data);
+  } catch (error: any) {
+    console.error("Error parsing exam document:", error);
+    return res.status(500).json({ error: error.message || "Lỗi không thể phân tích văn bản đề thi." });
+  }
+});
+
 // API Route: AI Grade Essay
 app.post("/api/grade-essay", async (req, res) => {
   try {
