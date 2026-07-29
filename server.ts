@@ -36,7 +36,14 @@ function getGeminiClient(): GoogleGenAI {
 
 // Helper to call Gemini with robust retries and fallback models
 async function generateContentWithRetry(ai: GoogleGenAI, params: { model: string; contents: any; config?: any }) {
-  const modelsToTry = [params.model, "gemini-3.6-flash", "gemini-flash-latest"];
+  const modelsToTry = [
+    params.model,
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-flash-latest",
+    "gemini-2.5-pro"
+  ];
   const uniqueModels = Array.from(new Set(modelsToTry)).filter(Boolean);
   
   let lastError: any = null;
@@ -174,7 +181,7 @@ LƯU Ý QUAN TRỌNG:
 - Đảm bảo các công thức toán học dễ đọc. Tránh ký hiệu toán học quá phức tạp.`;
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-3.6-flash",
+      model: "gemini-2.5-flash",
       contents: userPrompt,
       config: {
         systemInstruction: systemInstruction,
@@ -279,25 +286,21 @@ Nhiệm vụ của bạn là tiếp nhận tài liệu/văn bản đề thi do g
 
     let contentsParam: any;
     if (fileBase64 && fileMimeType) {
-      contentsParam = {
-        parts: [
-          {
-            inlineData: {
-              mimeType: fileMimeType,
-              data: fileBase64
-            }
-          },
-          {
-            text: `Hãy phân tích tài liệu đề thi PDF/Word được đính kèm ở trên và thực hiện nhiệm vụ:\n${jsonInstructions}`
+      contentsParam = [
+        {
+          inlineData: {
+            mimeType: fileMimeType,
+            data: fileBase64
           }
-        ]
-      };
+        },
+        `Hãy phân tích tài liệu đề thi PDF/Word được đính kèm ở trên và thực hiện nhiệm vụ:\n${jsonInstructions}`
+      ];
     } else {
       contentsParam = `Hãy phân tích và trích xuất toàn bộ cấu trúc đề thi từ đoạn văn bản thô sau đây:\n\n[VĂN BẢN ĐỀ THI TRÍCH XUẤT]\n${(rawText || "").slice(0, 30000)}\n\n${jsonInstructions}`;
     }
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-3.6-flash",
+      model: "gemini-2.5-flash",
       contents: contentsParam,
       config: {
         systemInstruction: systemInstruction,
@@ -413,7 +416,7 @@ Bạn PHẢI phản hồi bằng một đối tượng JSON duy nhất có dạn
 Hãy trả về chuỗi JSON thô, sạch sẽ.`;
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-3.6-flash",
+      model: "gemini-2.5-flash",
       contents: userPrompt,
       config: {
         systemInstruction: systemInstruction,
