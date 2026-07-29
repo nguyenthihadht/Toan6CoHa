@@ -547,7 +547,7 @@ C A A C C`;
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Không thể phân tích đề thi bằng AI.");
+        throw new Error(errData.error || `Lỗi (${res.status}): Không thể phân tích đề thi bằng AI.`);
       }
 
       const data = await res.json();
