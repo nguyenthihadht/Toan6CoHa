@@ -30,7 +30,11 @@ import {
   Upload,
   FileUp,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Gamepad2,
+  Link2,
+  Globe,
+  Share2
 } from "lucide-react";
 import { renderMath } from "../utils/mathFormatter";
 
@@ -95,6 +99,18 @@ export default function QuizBank({
   const [assignedClasses, setAssignedClasses] = useState<string[]>([]);
   const [customClassName, setCustomClassName] = useState("");
 
+  // Game exercise states
+  const [showCreateGameModal, setShowCreateGameModal] = useState(false);
+  const [editingGameQuizId, setEditingGameQuizId] = useState<string | null>(null);
+  const [gameTitleInput, setGameTitleInput] = useState("");
+  const [gameUrlInput, setGameUrlInput] = useState("");
+  const [gamePlatformInput, setGamePlatformInput] = useState("Quizizz");
+  const [gameInstructionsInput, setGameInstructionsInput] = useState("");
+  const [gameClassesInput, setGameClassesInput] = useState<string[]>([]);
+  const [gameCustomClass, setGameCustomClass] = useState("");
+  const [activeGameIframeUrl, setActiveGameIframeUrl] = useState<string | null>(null);
+  const [activeGameIframeTitle, setActiveGameIframeTitle] = useState<string | null>(null);
+
   // Sync config states on quiz change
   useEffect(() => {
     if (selectedQuiz) {
@@ -156,6 +172,103 @@ export default function QuizBank({
       setAssignedClasses([...assignedClasses, trimmed]);
     }
     setCustomClassName("");
+  };
+
+  const handleToggleGameClass = (className: string) => {
+    if (gameClassesInput.includes(className)) {
+      setGameClassesInput(gameClassesInput.filter(c => c !== className));
+    } else {
+      setGameClassesInput([...gameClassesInput, className]);
+    }
+  };
+
+  const handleAddGameCustomClass = () => {
+    const trimmed = gameCustomClass.trim().toUpperCase();
+    if (!trimmed) return;
+    if (!gameClassesInput.includes(trimmed)) {
+      setGameClassesInput([...gameClassesInput, trimmed]);
+    }
+    setGameCustomClass("");
+  };
+
+  const handleSaveGameExercise = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gameTitleInput.trim() || !gameUrlInput.trim()) {
+      alert("Vui lòng nhập đầy đủ Tiêu đề bài tập và Link trò chơi!");
+      return;
+    }
+
+    let url = gameUrlInput.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+
+    if (editingGameQuizId && selectedQuiz && selectedQuiz.id === editingGameQuizId) {
+      // Update existing quiz with game link info
+      const updatedQuiz: Quiz = {
+        ...selectedQuiz,
+        title: gameTitleInput.trim(),
+        isGameExercise: true,
+        gameUrl: url,
+        gamePlatform: gamePlatformInput,
+        gameInstructions: gameInstructionsInput.trim() || undefined,
+        assignedClasses: gameClassesInput.length > 0 ? gameClassesInput : undefined
+      };
+      onUpdateQuiz(updatedQuiz);
+      onSelectQuiz(updatedQuiz);
+      alert(`Đã cập nhật link trò chơi cho bài tập "${updatedQuiz.title}" thành công!`);
+    } else {
+      // Create new Game Exercise Quiz
+      const newGameQuiz: Quiz = {
+        id: `game-quiz-${Date.now()}`,
+        title: gameTitleInput.trim(),
+        createdAt: new Date().toISOString(),
+        createdBy: "Giáo viên (Bài tập Trò chơi)",
+        chapterId: "chuong-1",
+        lessonId: "bai-12",
+        difficultyLevels: ["medium"],
+        questionCount: 1,
+        types: ["multiple_choice"],
+        questions: [
+          {
+            id: `gq-${Date.now()}`,
+            type: "multiple_choice",
+            difficulty: "medium",
+            prompt: `🎮 [TRÒ CHƠI HỌC TẬP TƯƠNG TÁC]\nTiêu đề: ${gameTitleInput.trim()}\nNền tảng: ${gamePlatformInput}\n${gameInstructionsInput.trim() ? `\nHướng dẫn: ${gameInstructionsInput.trim()}` : ''}`,
+            options: ["Tham gia chơi ngay"],
+            correctAnswer: "Tham gia chơi ngay",
+            solution: `Học sinh truy cập đường dẫn trò chơi: ${url} để hoàn thành bài tập.`,
+            competency: "Năng lực giải quyết vấn đề toán học"
+          }
+        ],
+        isGameExercise: true,
+        gameUrl: url,
+        gamePlatform: gamePlatformInput,
+        gameInstructions: gameInstructionsInput.trim() || undefined,
+        assignedClasses: gameClassesInput.length > 0 ? gameClassesInput : undefined
+      };
+      onSaveQuiz(newGameQuiz);
+      onSelectQuiz(newGameQuiz);
+      alert(`Đã tạo thành công tiêu đề bài tập trò chơi "${newGameQuiz.title}" và gắn link ${gamePlatformInput}!`);
+    }
+
+    setShowCreateGameModal(false);
+    setEditingGameQuizId(null);
+    setGameTitleInput("");
+    setGameUrlInput("");
+    setGamePlatformInput("Quizizz");
+    setGameInstructionsInput("");
+    setGameClassesInput([]);
+  };
+
+  const handleOpenEditGameModal = (quiz: Quiz) => {
+    setEditingGameQuizId(quiz.id);
+    setGameTitleInput(quiz.title);
+    setGameUrlInput(quiz.gameUrl || "");
+    setGamePlatformInput(quiz.gamePlatform || "Quizizz");
+    setGameInstructionsInput(quiz.gameInstructions || "");
+    setGameClassesInput(quiz.assignedClasses || []);
+    setShowCreateGameModal(true);
   };
 
   const handleImportSampleQuiz = (sampleQuiz: Quiz) => {
@@ -375,6 +488,31 @@ export default function QuizBank({
   const [isParsingDocument, setIsParsingDocument] = useState(false);
   const [parseErrorMessage, setParseErrorMessage] = useState<string | null>(null);
   const [parsedResultQuiz, setParsedResultQuiz] = useState<Quiz | null>(null);
+  const [editingQuestionIdx, setEditingQuestionIdx] = useState<number | null>(null);
+
+  const handleUpdateParsedQuestion = (idx: number, updatedFields: Partial<Question>) => {
+    if (!parsedResultQuiz) return;
+    const newQuestions = [...parsedResultQuiz.questions];
+    newQuestions[idx] = {
+      ...newQuestions[idx],
+      ...updatedFields,
+      hasError: false,
+      errorMessage: undefined
+    };
+
+    const remainingErrors = newQuestions.filter(q => q.hasError && q.errorMessage);
+    setParsedResultQuiz({
+      ...parsedResultQuiz,
+      questions: newQuestions,
+      validationReport: {
+        totalQuestions: newQuestions.length,
+        validCount: newQuestions.length - remainingErrors.length,
+        errorCount: remainingErrors.length,
+        issuesList: remainingErrors.map(q => q.errorMessage!)
+      }
+    });
+    setEditingQuestionIdx(null);
+  };
 
   const SAMPLE_EXAM_DOCUMENT = `BÀI 12. ƯỚC CHUNG. ƯỚC CHUNG LỚN NHẤT. 
 
@@ -559,6 +697,7 @@ C A A C C`;
         id: `q-parsed-${Date.now()}-${idx}`,
         type: q.type || "multiple_choice",
         difficulty: q.difficulty || "medium",
+        cognitiveLevel: q.cognitiveLevel || undefined,
         prompt: q.prompt,
         options: q.options || undefined,
         correctAnswer: q.correctAnswer || "Chưa xác định",
@@ -566,11 +705,17 @@ C A A C C`;
         matchingPairs: q.matchingPairs || undefined,
         solution: q.solution || "Lời giải chi tiết cho câu hỏi này.",
         hint: q.hint || undefined,
-        competency: q.competency || "Năng lực giải quyết vấn đề toán học"
+        competency: q.competency || "Năng lực giải quyết vấn đề toán học",
+        hasError: Boolean(q.hasError),
+        errorMessage: q.errorMessage || undefined
       }));
 
       const difficultyLevels = Array.from(new Set(validatedQuestions.map(q => q.difficulty))) as Difficulty[];
       const types = Array.from(new Set(validatedQuestions.map(q => q.type))) as QuestionType[];
+
+      const issuesFromQuestions = validatedQuestions
+        .filter(q => q.hasError && q.errorMessage)
+        .map(q => q.errorMessage!);
 
       const newQuiz: Quiz = {
         id: `quiz-parsed-${Date.now()}`,
@@ -583,7 +728,13 @@ C A A C C`;
         questions: validatedQuestions,
         createdAt: new Date().toISOString(),
         createdBy: "Giáo viên (AI phân tích từ file PDF/Word)",
-        timeLimit: data.timeLimit || 45
+        timeLimit: data.timeLimit || 45,
+        validationReport: data.validationReport || {
+          totalQuestions: validatedQuestions.length,
+          validCount: validatedQuestions.filter(q => !q.hasError).length,
+          errorCount: issuesFromQuestions.length,
+          issuesList: issuesFromQuestions
+        }
       };
 
       setParsedResultQuiz(newQuiz);
@@ -826,6 +977,23 @@ C A A C C`;
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Nút Tạo Bài Tập Trò Chơi (Gắn Link Quizizz, Wordwall, Kahoot...) */}
+          <button
+            onClick={() => {
+              setEditingGameQuizId(null);
+              setGameTitleInput("");
+              setGameUrlInput("");
+              setGamePlatformInput("Quizizz");
+              setGameInstructionsInput("");
+              setGameClassesInput([]);
+              setShowCreateGameModal(true);
+            }}
+            className="rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-700 hover:to-indigo-700 text-white font-bold text-xs px-4 py-2.5 shadow-lg shadow-purple-500/20 flex items-center gap-1.5 active:scale-95 transition-all shrink-0 border border-purple-400/30"
+            title="Tạo tiêu đề bài tập mới và gắn link trò chơi tương tác (Quizizz, Wordwall, Kahoot, Blooket...)"
+          >
+            <Gamepad2 className="h-4 w-4 text-pink-200" /> Tạo Tiêu Đề Bài Tập & Gắn Link Trò Chơi
+          </button>
+
           {/* Upload & Parse PDF/Word/Text Exam Document with AI */}
           <button
             onClick={() => {
@@ -951,9 +1119,16 @@ C A A C C`;
                 >
                   <div className="space-y-2">
                     <div className="flex justify-between items-center flex-wrap gap-1.5">
-                      <span className="inline-flex rounded-md bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 text-2xs font-bold text-blue-600 dark:text-blue-400">
-                        {quiz.questions.length} câu hỏi
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="inline-flex rounded-md bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 text-2xs font-bold text-blue-600 dark:text-blue-400">
+                          {quiz.questions.length} câu hỏi
+                        </span>
+                        {quiz.gameUrl && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-purple-100 dark:bg-purple-950/80 px-2 py-0.5 text-2xs font-extrabold text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            <Gamepad2 className="h-3 w-3" /> {quiz.gamePlatform || "Trò chơi"}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-2xs text-slate-400">
                         {new Date(quiz.createdAt).toLocaleDateString("vi-VN")}
                       </span>
@@ -1047,6 +1222,15 @@ C A A C C`;
                   </button>
 
                   <button
+                    onClick={() => handleOpenEditGameModal(selectedQuiz)}
+                    className="inline-flex items-center gap-1 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold text-xs px-3 py-2 transition-all active:scale-95 shadow-sm"
+                    title="Gắn link trò chơi học tập tương tác (Quizizz, Wordwall, Kahoot...)"
+                  >
+                    <Gamepad2 className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                    {selectedQuiz.gameUrl ? "Sửa Link Game" : "Gắn Link Game"}
+                  </button>
+
+                  <button
                     onClick={() => {
                       setIsAssigning(!isAssigning);
                       setIsConfiguring(false);
@@ -1121,6 +1305,56 @@ C A A C C`;
                   </button>
                 </div>
               </div>
+
+              {/* Banner Trò Chơi Học Tập Tương Tác (Nếu có) */}
+              {selectedQuiz.gameUrl && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-indigo-500/10 border border-purple-200 dark:border-purple-800/80 space-y-3 no-print">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="p-2.5 rounded-2xl bg-purple-600 text-white shadow-md shadow-purple-500/20 shrink-0">
+                        <Gamepad2 className="h-6 w-6" />
+                      </span>
+                      <div>
+                        <div className="font-bold text-xs text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                          TRÒ CHƠI HỌC TẬP TƯƠNG TÁC • <span className="uppercase text-purple-600 dark:text-purple-400 font-extrabold">{selectedQuiz.gamePlatform || "Quizizz"}</span>
+                        </div>
+                        <a
+                          href={selectedQuiz.gameUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 break-all mt-0.5"
+                        >
+                          <Link2 className="h-3.5 w-3.5 shrink-0" /> {selectedQuiz.gameUrl}
+                        </a>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => {
+                          setActiveGameIframeUrl(selectedQuiz.gameUrl!);
+                          setActiveGameIframeTitle(selectedQuiz.title);
+                        }}
+                        className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-md shadow-purple-500/20 flex items-center gap-1.5 active:scale-95 transition-all"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-current" /> Chơi Thử Trực Tiếp
+                      </button>
+                      <a
+                        href={selectedQuiz.gameUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Mở Tab Mới
+                      </a>
+                    </div>
+                  </div>
+                  {selectedQuiz.gameInstructions && (
+                    <div className="text-xs text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-900/70 p-2.5 rounded-xl border border-purple-100 dark:border-purple-900/40">
+                      <strong>📌 Ghi chú/Hướng dẫn giáo viên dặn học sinh:</strong> {selectedQuiz.gameInstructions}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {isAssigning && (
                 <form onSubmit={handleSaveAssignment} className="bg-slate-50 dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-850 space-y-4 no-print">
@@ -1914,13 +2148,30 @@ C A A C C`;
                     <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
-                        AI đã trích xuất thành công {parsedResultQuiz.questionCount} câu hỏi!
+                        AI đã trích xuất & thẩm định thành công {parsedResultQuiz.questionCount} câu hỏi!
                       </h4>
                       <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
-                        Kiểm tra lại xem nội dung câu hỏi và Bảng Đáp Án đã được khớp chính xác chưa trước khi lưu vào Ngân hàng đề thi của bạn.
+                        Giữ nguyên form đề của giáo viên, tự động đối chiếu Bảng Đáp Án và phát hiện các câu hỏi cần chú ý.
                       </p>
                     </div>
                   </div>
+
+                  {/* Diagnostic Alert Box if issues found */}
+                  {parsedResultQuiz.validationReport && parsedResultQuiz.validationReport.errorCount > 0 && (
+                    <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-2">
+                      <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-bold text-xs">
+                        <span>⚠️ BÁO CÁO TỰ KIỂM TRA: PHÁT HIỆN {parsedResultQuiz.validationReport.errorCount} CÂU CẦN XÁC NHẬN</span>
+                      </div>
+                      <ul className="list-disc pl-5 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                        {parsedResultQuiz.validationReport.issuesList?.map((issue, i) => (
+                          <li key={i}>{issue}</li>
+                        ))}
+                      </ul>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400 italic">
+                        👉 Giáo viên có thể bấm "✏️ Sửa nhanh câu này" bên dưới để hoàn thiện nội dung trước khi lưu.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tiêu đề đề thi:</div>
@@ -1938,47 +2189,135 @@ C A A C C`;
                   </div>
 
                   {/* List of Questions Preview */}
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-2">
                     <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                       Danh sách {parsedResultQuiz.questions.length} câu hỏi đã bóc tách:
                     </div>
 
                     {parsedResultQuiz.questions.map((q, idx) => (
-                      <div key={q.id} className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2 text-xs">
+                      <div
+                        key={q.id}
+                        className={`p-3.5 rounded-xl border ${
+                          q.hasError
+                            ? "border-amber-400 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/20"
+                            : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                        } space-y-2 text-xs transition-all`}
+                      >
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                            Câu {idx + 1}: [{DIFFICULTY_LABELS[q.difficulty]}]
+                            Câu {idx + 1}: [{q.cognitiveLevel || DIFFICULTY_LABELS[q.difficulty]}]
                           </span>
-                          <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 font-mono">
-                            {q.type}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {q.hasError && (
+                              <span className="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 font-bold text-[10px]">
+                                ⚠️ Cần kiểm tra
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setEditingQuestionIdx(editingQuestionIdx === idx ? null : idx)}
+                              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium text-[11px]"
+                            >
+                              {editingQuestionIdx === idx ? "Hủy sửa" : "✏️ Sửa câu này"}
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="font-medium text-slate-800 dark:text-slate-200">
-                          {renderMath(q.prompt)}
-                        </div>
-
-                        {q.options && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-2 text-slate-600 dark:text-slate-400">
-                            {q.options.map((opt, oIdx) => (
-                              <div
-                                key={oIdx}
-                                className={`p-1.5 rounded ${
-                                  opt === q.correctAnswer || q.correctAnswer?.includes(opt)
-                                    ? "bg-emerald-100 dark:bg-emerald-950/60 font-semibold text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
-                                    : "bg-slate-50 dark:bg-slate-800/50"
-                                }`}
-                              >
-                                {renderMath(opt)}
-                              </div>
-                            ))}
+                        {q.hasError && q.errorMessage && (
+                          <div className="p-2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 font-medium text-[11px] border border-amber-300 dark:border-amber-800">
+                            📍 <strong>Báo lỗi trích xuất:</strong> {q.errorMessage}
                           </div>
                         )}
 
-                        <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-950/20 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-900/40 text-[11px]">
-                          <strong>Đáp án đúng:</strong> {renderMath(q.correctAnswer)}<br />
-                          <strong>Lời giải AI:</strong> {renderMath(q.solution)}
-                        </div>
+                        {editingQuestionIdx === idx ? (
+                          /* Inline Question Editor */
+                          <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-indigo-200 dark:border-indigo-900 space-y-2 mt-2">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                                Nội dung đề bài Câu {idx + 1}:
+                              </label>
+                              <textarea
+                                rows={2}
+                                defaultValue={q.prompt}
+                                id={`edit-prompt-${idx}`}
+                                className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                              />
+                            </div>
+
+                            {q.options && (
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                                  Các phương án lựa chọn (mỗi dòng 1 phương án A., B., C., D.):
+                                </label>
+                                <textarea
+                                  rows={4}
+                                  defaultValue={q.options.join("\n")}
+                                  id={`edit-options-${idx}`}
+                                  className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono"
+                                />
+                              </div>
+                            )}
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                                Đáp án đúng:
+                              </label>
+                              <input
+                                type="text"
+                                defaultValue={q.correctAnswer}
+                                id={`edit-answer-${idx}`}
+                                className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                              />
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const promptEl = document.getElementById(`edit-prompt-${idx}`) as HTMLTextAreaElement;
+                                const optionsEl = document.getElementById(`edit-options-${idx}`) as HTMLTextAreaElement;
+                                const answerEl = document.getElementById(`edit-answer-${idx}`) as HTMLInputElement;
+
+                                const updatedOpts = optionsEl ? optionsEl.value.split("\n").filter(Boolean) : q.options;
+                                handleUpdateParsedQuestion(idx, {
+                                  prompt: promptEl ? promptEl.value : q.prompt,
+                                  options: updatedOpts,
+                                  correctAnswer: answerEl ? answerEl.value : q.correctAnswer
+                                });
+                              }}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold text-xs"
+                            >
+                              Lưu thay đổi câu này
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="font-medium text-slate-800 dark:text-slate-200">
+                              {renderMath(q.prompt)}
+                            </div>
+
+                            {q.options && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-2 text-slate-600 dark:text-slate-400">
+                                {q.options.map((opt, oIdx) => (
+                                  <div
+                                    key={oIdx}
+                                    className={`p-1.5 rounded ${
+                                      opt === q.correctAnswer || q.correctAnswer?.includes(opt)
+                                        ? "bg-emerald-100 dark:bg-emerald-950/60 font-semibold text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                                        : "bg-slate-50 dark:bg-slate-800/50"
+                                    }`}
+                                  >
+                                    {renderMath(opt)}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-950/20 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-900/40 text-[11px]">
+                              <strong>Đáp án đúng:</strong> {renderMath(q.correctAnswer)}<br />
+                              <strong>Lời giải AI:</strong> {renderMath(q.solution)}
+                            </div>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2004,6 +2343,227 @@ C A A C C`;
                 </div>
               )}
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Create or Edit Game Exercise */}
+      {showCreateGameModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
+                  <Gamepad2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-slate-900 dark:text-slate-100 text-sm md:text-base">
+                    {editingGameQuizId ? "Sửa Tiêu Đề & Link Trò Chơi Học Tập" : "Tạo Tiêu Đề Bài Tập & Gắn Link Trò Chơi"}
+                  </h3>
+                  <p className="text-2xs text-slate-500">
+                    Gắn link trò chơi trực tuyến (Quizizz, Wordwall, Kahoot, Blooket, GeoGebra...) để giao bài cho học sinh.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCreateGameModal(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveGameExercise} className="space-y-4 text-xs">
+              {/* Tiêu đề bài tập */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Tiêu đề bài tập / Trò chơi <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: Ôn tập Ước chung & ƯCLN - Thử thách Quizizz"
+                  value={gameTitleInput}
+                  onChange={(e) => setGameTitleInput(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              {/* Nền tảng trò chơi */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Chọn nền tảng trò chơi:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "Quizizz", label: "💜 Quizizz", bg: "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950 dark:text-purple-300" },
+                    { id: "Wordwall", label: "💚 Wordwall", bg: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300" },
+                    { id: "Kahoot", label: "🔴 Kahoot", bg: "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300" },
+                    { id: "Blooket", label: "🔵 Blooket", bg: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950 dark:text-blue-300" },
+                    { id: "GeoGebra", label: "📐 GeoGebra", bg: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300" },
+                    { id: "Liveworksheets", label: "📝 Liveworksheets", bg: "bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950 dark:text-indigo-300" },
+                    { id: "Khác", label: "🌐 Trò chơi khác", bg: "bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-300" },
+                  ].map(item => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      onClick={() => setGamePlatformInput(item.id)}
+                      className={`px-3 py-1.5 rounded-xl font-bold border transition-all ${
+                        gamePlatformInput === item.id
+                          ? `${item.bg} ring-2 ring-purple-500 shadow-sm scale-105`
+                          : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Link trò chơi */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Đường dẫn Link Trò chơi (URL) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="https://quizizz.com/join?gc=123456 hoặc https://wordwall.net/play/..."
+                    value={gameUrlInput}
+                    onChange={(e) => setGameUrlInput(e.target.value)}
+                    className="w-full pl-9 pr-3 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  👉 Dán liên kết phòng chơi hoặc bài tập từ Quizizz, Wordwall, Kahoot hay bất kỳ trang web toán học tương tác nào.
+                </p>
+              </div>
+
+              {/* Hướng dẫn học sinh */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Ghi chú & Hướng dẫn cho học sinh (không bắt buộc):
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ví dụ: Bấm nút Chơi ngay bên dưới để bắt đầu. Vui lòng nhập đúng Họ tên và Lớp của mình khi tham gia."
+                  value={gameInstructionsInput}
+                  onChange={(e) => setGameInstructionsInput(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              {/* Giao cho Lớp học */}
+              <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <label className="block font-bold text-slate-700 dark:text-slate-300">
+                  Giao bài tập trò chơi cho lớp học:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {Array.from(new Set(students.map(st => st.class))).filter(Boolean).sort().map(cls => {
+                    const isChecked = gameClassesInput.includes(cls);
+                    return (
+                      <button
+                        type="button"
+                        key={cls}
+                        onClick={() => handleToggleGameClass(cls)}
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 border ${
+                          isChecked
+                            ? "bg-purple-600 border-purple-600 text-white shadow-sm"
+                            : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+                        }`}
+                      >
+                        {isChecked && <Check className="h-3.5 w-3.5" />}
+                        Lớp {cls}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex gap-2 max-w-xs pt-1">
+                  <input
+                    type="text"
+                    placeholder="Thêm lớp mới (VD: 6A5)"
+                    value={gameCustomClass}
+                    onChange={(e) => setGameCustomClass(e.target.value)}
+                    className="flex-1 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddGameCustomClass();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddGameCustomClass}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl"
+                  >
+                    Thêm
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  {gameClassesInput.length > 0 ? `Đang giao cho: ${gameClassesInput.join(", ")}` : "Đang giao cho: Tất cả các lớp"}
+                </p>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateGameModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg shadow-purple-500/20 active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                  <Check className="h-4 w-4" /> {editingGameQuizId ? "Cập Nhật Link Trò Chơi" : "Lưu Bài Tập Trò Chơi"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Embedded Game Iframe Player */}
+      {activeGameIframeUrl && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="p-4 bg-slate-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Gamepad2 className="h-5 w-5 text-purple-400" />
+                <span className="font-bold text-sm truncate max-w-md">{activeGameIframeTitle || "Trò chơi tương tác học tập"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={activeGameIframeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Mở Tab Mới
+                </a>
+                <button
+                  onClick={() => setActiveGameIframeUrl(null)}
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 w-full h-full bg-slate-950 relative">
+              <iframe
+                src={activeGameIframeUrl}
+                className="w-full h-full border-0"
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                allowFullScreen
+                title="Trò chơi học tập"
+              />
             </div>
           </div>
         </div>

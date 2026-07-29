@@ -17,7 +17,11 @@ import {
   Lock,
   Unlock,
   AlertTriangle,
-  UserCheck
+  UserCheck,
+  Gamepad2,
+  ExternalLink,
+  Link2,
+  X
 } from "lucide-react";
 import { renderMath } from "../utils/mathFormatter";
 
@@ -89,6 +93,10 @@ export default function OnlineTest({
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [elapsedTime, setElapsedTime] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
+
+  // Student interactive game modal states
+  const [studentActiveGameUrl, setStudentActiveGameUrl] = useState<string | null>(null);
+  const [studentActiveGameTitle, setStudentActiveGameTitle] = useState<string | null>(null);
 
   // Grading outcomes
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -282,10 +290,17 @@ export default function OnlineTest({
                   }
 
                   return (
-                    <div key={q.id} className="rounded-2xl border border-slate-100 dark:border-slate-850 bg-white dark:bg-slate-900 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                    <div key={q.id} className={`rounded-2xl border ${q.gameUrl ? 'border-purple-200 dark:border-purple-800/80 bg-gradient-to-b from-purple-50/30 to-white dark:from-purple-950/20 dark:to-slate-900' : 'border-slate-100 dark:border-slate-850 bg-white dark:bg-slate-900'} p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between`}>
                       <div className="space-y-3">
                         <div className="flex justify-between items-start gap-2 flex-wrap text-2xs">
-                          <span className="font-bold text-indigo-600 uppercase tracking-widest block">Mã đề: {q.id}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-indigo-600 uppercase tracking-widest block">Mã đề: {q.id}</span>
+                            {q.gameUrl && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-purple-100 dark:bg-purple-950/80 px-2 py-0.5 text-2xs font-extrabold text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                <Gamepad2 className="h-3 w-3" /> {q.gamePlatform || "Trò chơi"}
+                              </span>
+                            )}
+                          </div>
                           {statusBadge}
                         </div>
 
@@ -293,19 +308,52 @@ export default function OnlineTest({
                           {q.title}
                         </h4>
 
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-3xs font-bold text-slate-400 uppercase tracking-wider">
-                          <span>Số lượng: {q.questions.length} câu</span>
-                          {q.timeLimit ? (
-                            <span className="flex items-center gap-1 text-orange-500"><Clock className="h-3 w-3" /> {q.timeLimit} phút</span>
-                          ) : (
-                            <span>Thời gian tự do</span>
-                          )}
-                          {q.assignedClasses && q.assignedClasses.length > 0 && (
-                            <span className="text-blue-600 dark:text-blue-400 font-extrabold bg-blue-50 dark:bg-blue-950/30 px-1.5 py-0.5 rounded">
-                              Lớp: {q.assignedClasses.join(", ")}
-                            </span>
-                          )}
-                        </div>
+                        {q.gameUrl ? (
+                          <div className="p-3 rounded-xl bg-purple-100/60 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-900/40 space-y-2">
+                            <div className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                              <Gamepad2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                              Trò chơi tương tác học tập ({q.gamePlatform || "Quizizz"})
+                            </div>
+                            {q.gameInstructions && (
+                              <p className="text-2xs text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-900/80 p-2 rounded-lg border border-purple-100 dark:border-purple-900/30">
+                                📌 {q.gameInstructions}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                onClick={() => {
+                                  setStudentActiveGameUrl(q.gameUrl!);
+                                  setStudentActiveGameTitle(q.title);
+                                }}
+                                className="flex-1 py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-2xs rounded-xl shadow-md shadow-purple-500/20 flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                              >
+                                <Play className="h-3.5 w-3.5 fill-current" /> Bấm Để Chơi Ngay
+                              </button>
+                              <a
+                                href={q.gameUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="py-2 px-3 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-2xs rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" /> Tab Mới
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-3xs font-bold text-slate-400 uppercase tracking-wider">
+                            <span>Số lượng: {q.questions.length} câu</span>
+                            {q.timeLimit ? (
+                              <span className="flex items-center gap-1 text-orange-500"><Clock className="h-3 w-3" /> {q.timeLimit} phút</span>
+                            ) : (
+                              <span>Thời gian tự do</span>
+                            )}
+                            {q.assignedClasses && q.assignedClasses.length > 0 && (
+                              <span className="text-blue-600 dark:text-blue-400 font-extrabold bg-blue-50 dark:bg-blue-950/30 px-1.5 py-0.5 rounded">
+                                Lớp: {q.assignedClasses.join(", ")}
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         {q.endTime && (
                           <div className="text-[10px] text-rose-500 font-semibold flex items-center gap-1 bg-rose-50/50 dark:bg-rose-950/20 px-2.5 py-1 rounded-lg">
@@ -317,7 +365,7 @@ export default function OnlineTest({
 
                       <div className="pt-4 border-t border-slate-50 dark:border-slate-850 mt-4 flex items-center justify-between">
                         <span className="text-[10px] text-slate-400">Đơn vị soạn: {q.schoolName || "GDPT Kết nối tri thức"}</span>
-                        {actionButton}
+                        {!q.gameUrl && actionButton}
                       </div>
                     </div>
                   );
@@ -1170,6 +1218,44 @@ export default function OnlineTest({
             </div>
 
             <p className="text-2xs text-slate-400">Tiến trình chấm tự luận bằng Gemini có thể mất 5 - 15 giây tùy vào độ dài lời giải học sinh.</p>
+          </div>
+        </div>
+      )}
+      {/* Modal Embedded Game Iframe Player for Students */}
+      {studentActiveGameUrl && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="p-4 bg-slate-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Gamepad2 className="h-5 w-5 text-purple-400" />
+                <span className="font-bold text-sm truncate max-w-md">{studentActiveGameTitle || "Trò chơi tương tác học tập"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={studentActiveGameUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Mở Tab Mới
+                </a>
+                <button
+                  onClick={() => setStudentActiveGameUrl(null)}
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 w-full h-full bg-slate-950 relative">
+              <iframe
+                src={studentActiveGameUrl}
+                className="w-full h-full border-0"
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                allowFullScreen
+                title="Trò chơi học tập"
+              />
+            </div>
           </div>
         </div>
       )}

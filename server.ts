@@ -39,9 +39,7 @@ function getGeminiClient(): GoogleGenAI {
 async function generateContentWithRetry(ai: GoogleGenAI, params: { model: string; contents: any; config?: any }) {
   const modelsToTry = [
     params.model,
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    "gemini-3.6-flash",
     "gemini-flash-latest"
   ];
   const uniqueModels = Array.from(new Set(modelsToTry)).filter(Boolean);
@@ -187,7 +185,7 @@ LƯU Ý QUAN TRỌNG:
 - Đảm bảo các công thức toán học dễ đọc. Tránh ký hiệu toán học quá phức tạp.`;
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-2.0-flash",
+      model: "gemini-3.6-flash",
       contents: userPrompt,
       config: {
         systemInstruction: systemInstruction,
@@ -274,39 +272,54 @@ app.post("/api/parse-exam-document", async (req, res) => {
 
     const ai = getGeminiClient();
 
-    const systemInstruction = `Bạn là một chuyên gia phân tích và trích xuất đề thi môn Toán cấp 2 (Lớp 6) hàng đầu.
-Nhiệm vụ của bạn là tiếp nhận tài liệu/văn bản đề thi do giáo viên tải lên (từ file PDF, Word, hoặc dán trực tiếp), phân tích tiêu đề đề thi, các phần mức độ nhận thức (Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao), các câu hỏi trắc nghiệm A/B/C/D (hoặc Đúng/Sai, Ghép cột, Tự luận), và tự động đối chiếu với bảng đáp án ở cuối đề (hoặc đáp án trong bài) để ghép đáp án đúng và sinh lời giải chi tiết chuẩn xác cho từng câu.`;
+    const systemInstruction = `Bạn là một Chuyên gia Thẩm định & Phân tích Đề thi môn Toán THCS (Lớp 6) hàng đầu.
+Nhiệm vụ của bạn là tiếp nhận file PDF/Word hoặc văn bản đề thi do giáo viên tải lên, đọc và trích xuất TOÀN BỘ các câu hỏi, giữ nguyên cấu trúc đề thi ban đầu (tiêu đề, phân loại Mức độ Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao, các phần trắc nghiệm, tự luận, v.v.).
 
-    const jsonInstructions = `Hãy phân tích tài liệu và trích xuất toàn bộ cấu trúc đề thi, trả về định dạng JSON theo đúng schema sau:
+ĐẶC BIỆT CHÚ Ý VÀ KIỂM TRA LỖI TRÍCH XUẤT:
+1. Đối chiếu chính xác BẢNG ĐÁP ÁN ở trang cuối (nếu có) để tìm đáp án đúng cho từng câu hỏi (Câu 1 -> đáp án, Câu 2 -> đáp án...).
+2. GIỮ NGUYÊN các ký hiệu toán học (∈, ∉, ⊂, Ư(a), ƯC, ƯCLN, số mũ 2^4.3^3.5^2...).
+3. KIỂM TRA VÀ BÁO LỖI NẾU CÓ ĐỀ BÀI LỖI HOẶC THIẾU:
+   - Nếu một câu hỏi bị thiếu đáp án trong Bảng đáp án, thiếu phương án lựa chọn A/B/C/D (ví dụ: bị mất phương án D do ngắt trang), đề bài bị thiếu dữ kiện, hoặc đáp án trong bảng không khớp với các lựa chọn: Hãy đánh dấu 'hasError: true' và ghi rõ 'errorMessage' chỉ ra chính xác câu số mấy và lỗi gì (Ví dụ: "Câu 15: Thiếu phương án D trong đề bài (cần bổ sung)", "Câu 3: Đáp án C trong bảng không có trong các phương án").
+   - Nếu câu hỏi hoàn toàn hợp lệ, hãy đặt 'hasError: false' và 'errorMessage: null'.
+4. Trả về báo cáo tổng hợp 'validationReport' kê khai tổng số câu, số câu hợp lệ, số câu bị lỗi và danh sách chi tiết các lỗi cần giáo viên điều chỉnh.`;
+
+    const jsonInstructions = `Hãy phân tích tài liệu đề thi và trả về JSON chuẩn xác theo đúng schema sau:
 - 'title': Tiêu đề đề thi (Ví dụ: "BÀI 12. ƯỚC CHUNG. ƯỚC CHUNG LỚN NHẤT.").
 - 'timeLimit': Thời gian làm bài tính bằng phút (mặc định 45 nếu không đề cập).
-- 'questions': Mảng các câu hỏi trích xuất được.
-   Với mỗi câu:
-   + 'type': "multiple_choice" (Trắc nghiệm 4 phương án), "true_false" (Đúng / Sai), "matching" (Ghép nối), "fill_blank" (Điền đáp số), hoặc "essay" (Tự luận).
-   + 'difficulty': "easy" (Nhận biết / Mức 1), "medium" (Thông hiểu / Mức 2), "hard" (Vận dụng / Mức 3), "very_hard" (Vận dụng cao / Mức 4).
-   + 'prompt': Nội dung câu hỏi (chỉ lấy phần câu hỏi, giữ lại công thức ký hiệu toán học như ∈, ∉, ⊂, Ư(a), ƯC, ƯCLN, số mũ...).
-   + 'options': Mảng các phương án ["A. ...", "B. ...", "C. ...", "D. ..."] (nếu type là multiple_choice).
-   + 'correctAnswer': Phương án đúng chính xác. Hãy tra cứu BẢNG ĐÁP ÁN ở cuối văn bản/trang cuối (nếu có) để lấy chữ cái đáp án tương ứng với số thứ tự câu hỏi và ghi kèm nội dung phương án đầy đủ (Ví dụ: "C. x ∈ Ư(a) và x ∈ Ư(b)").
-   + 'solution': Lời giải toán chi tiết, giải thích rõ ràng tại sao chọn đáp án đó.
-   + 'competency': Năng lực toán học (Ví dụ: "Năng lực tư duy và lập luận toán học", "Năng lực giải quyết vấn đề toán học", "Năng lực tính toán").`;
+- 'validationReport': Đối tượng tổng hợp kết quả thẩm định đề:
+    + 'totalQuestions': Tổng số câu hỏi bóc tách được.
+    + 'validCount': Số câu hợp lệ 100%.
+    + 'errorCount': Số câu phát hiện lỗi/chú ý.
+    + 'issuesList': Mảng các chuỗi mô tả từng lỗi cụ thể ghi rõ câu số mấy (Ví dụ: ["Câu 15: Phương án D nằm ở trang tiếp theo trong file PDF", "Câu 4: Thiếu lời giải chi tiết trong đề thô"]).
+- 'questions': Mảng các câu hỏi bóc tách được từ đề thi. Với mỗi câu:
+    + 'type': "multiple_choice" (Trắc nghiệm 4 phương án), "true_false" (Đúng/Sai), "matching" (Ghép nối), "fill_blank" (Điền đáp số), "essay" (Tự luận).
+    + 'difficulty': "easy" (Nhận biết / Mức 1), "medium" (Thông hiểu / Mức 2), "hard" (Vận dụng / Mức 3), "very_hard" (Vận dụng cao / Mức 4).
+    + 'cognitiveLevel': Tên mức độ theo form giáo viên (Ví dụ: "I – MỨC ĐỘ NHẬN BIẾT", "II – MỨC ĐỘ THÔNG HIỂU", "III – MỨC ĐỘ VẬN DỤNG").
+    + 'prompt': Nội dung câu hỏi (chỉ lấy phần câu hỏi toán học, giữ nguyên công thức).
+    + 'options': Mảng các phương án ["A. ...", "B. ...", "C. ...", "D. ..."].
+    + 'correctAnswer': Phương án đúng chính xác (tra cứu từ Bảng Đáp Án ở trang cuối nếu có, ví dụ: "C. x ∈ Ư(a) và x ∈ Ư(b)").
+    + 'solution': Lời giải chi tiết bài toán (giải thích tại sao chọn đáp án đó).
+    + 'competency': Năng lực toán học đánh giá (Ví dụ: "Năng lực tư duy và lập luận toán học").
+    + 'hasError': boolean (true nếu phát hiện lỗi ở câu hỏi này).
+    + 'errorMessage': chuỗi mô tả lỗi ở câu này nếu có (ví dụ: "Câu 15: Bị ngắt trang ở đáp án D, hãy kiểm tra lại").`;
 
     let contentsParam: any;
     if (fileBase64 && fileMimeType) {
       contentsParam = [
         {
           inlineData: {
-            mimeType: fileMimeType,
-            data: fileBase64
+            mimeType: fileBase64.startsWith("data:") ? fileMimeType : fileMimeType,
+            data: fileBase64.includes(",") ? fileBase64.split(",")[1] : fileBase64
           }
         },
-        `Hãy phân tích tài liệu đề thi PDF/Word được đính kèm ở trên và thực hiện nhiệm vụ:\n${jsonInstructions}`
+        `Hãy phân tích file PDF/Word đề thi được đính kèm ở trên và bóc tách cấu trúc theo yêu cầu:\n${jsonInstructions}`
       ];
     } else {
-      contentsParam = `Hãy phân tích và trích xuất toàn bộ cấu trúc đề thi từ đoạn văn bản thô sau đây:\n\n[VĂN BẢN ĐỀ THI TRÍCH XUẤT]\n${(rawText || "").slice(0, 30000)}\n\n${jsonInstructions}`;
+      contentsParam = `Hãy phân tích và bóc tách toàn bộ cấu trúc đề thi từ đoạn văn bản thô sau đây:\n\n[VĂN BẢN ĐỀ THI]\n${(rawText || "").slice(0, 40000)}\n\n${jsonInstructions}`;
     }
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-2.0-flash",
+      model: "gemini-3.6-flash",
       contents: contentsParam,
       config: {
         systemInstruction: systemInstruction,
@@ -318,6 +331,18 @@ Nhiệm vụ của bạn là tiếp nhận tài liệu/văn bản đề thi do g
           properties: {
             title: { type: Type.STRING },
             timeLimit: { type: Type.NUMBER },
+            validationReport: {
+              type: Type.OBJECT,
+              properties: {
+                totalQuestions: { type: Type.NUMBER },
+                validCount: { type: Type.NUMBER },
+                errorCount: { type: Type.NUMBER },
+                issuesList: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING }
+                }
+              }
+            },
             questions: {
               type: Type.ARRAY,
               items: {
@@ -326,39 +351,18 @@ Nhiệm vụ của bạn là tiếp nhận tài liệu/văn bản đề thi do g
                 properties: {
                   type: { type: Type.STRING },
                   difficulty: { type: Type.STRING },
+                  cognitiveLevel: { type: Type.STRING },
                   prompt: { type: Type.STRING },
                   options: {
                     type: Type.ARRAY,
                     items: { type: Type.STRING }
                   },
                   correctAnswer: { type: Type.STRING },
-                  trueFalseStatements: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      required: ["id", "statement", "answer"],
-                      properties: {
-                        id: { type: Type.STRING },
-                        statement: { type: Type.STRING },
-                        answer: { type: Type.BOOLEAN }
-                      }
-                    }
-                  },
-                  matchingPairs: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      required: ["id", "left", "right"],
-                      properties: {
-                        id: { type: Type.STRING },
-                        left: { type: Type.STRING },
-                        right: { type: Type.STRING }
-                      }
-                    }
-                  },
                   solution: { type: Type.STRING },
                   hint: { type: Type.STRING },
-                  competency: { type: Type.STRING }
+                  competency: { type: Type.STRING },
+                  hasError: { type: Type.BOOLEAN },
+                  errorMessage: { type: Type.STRING }
                 }
               }
             }
@@ -422,7 +426,7 @@ Bạn PHẢI phản hồi bằng một đối tượng JSON duy nhất có dạn
 Hãy trả về chuỗi JSON thô, sạch sẽ.`;
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-2.0-flash",
+      model: "gemini-3.6-flash",
       contents: userPrompt,
       config: {
         systemInstruction: systemInstruction,

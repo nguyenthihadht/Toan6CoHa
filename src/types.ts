@@ -27,6 +27,7 @@ export interface Question {
   id: string;
   type: QuestionType;
   difficulty: Difficulty;
+  cognitiveLevel?: string;      // Tên mức độ nhận thức (VD: I - MỨC ĐỘ NHẬN BIẾT)
   prompt: string;               // Nội dung câu hỏi
   options?: string[];           // Danh sách lựa chọn (cho trắc nghiệm)
   correctAnswer: string;        // Đáp án đúng (hoặc chỉ dẫn cho tự luận/điền khuyết)
@@ -36,6 +37,8 @@ export interface Question {
   hint?: string;                // Gợi ý làm bài
   comment?: string;             // Nhận xét sư phạm
   competency: string;           // Năng lực toán học được đánh giá (ví dụ: Tư duy lập luận toán học, Giải quyết vấn đề)
+  hasError?: boolean;           // Đánh dấu phát hiện lỗi khi AI trích xuất/thẩm định
+  errorMessage?: string;        // Chi tiết lỗi và chỉ dẫn câu cần sửa
 }
 
 export interface Quiz {
@@ -55,6 +58,16 @@ export interface Quiz {
   startTime?: string; // Khoảng thời gian bắt đầu làm bài (định dạng YYYY-MM-DDTHH:mm)
   endTime?: string;   // Khoảng thời gian kết thúc làm bài (định dạng YYYY-MM-DDTHH:mm)
   assignedClasses?: string[]; // Danh sách lớp được giao đề thi này
+  isGameExercise?: boolean;  // Đánh dấu đây là bài tập dạng Trò chơi tương tác (Quizizz, Wordwall...)
+  gameUrl?: string;          // Link trò chơi tương tác giáo viên gắn vào
+  gamePlatform?: string;     // Nền tảng (Quizizz, Wordwall, Kahoot, Blooket, GeoGebra, Liveworksheets, Khác)
+  gameInstructions?: string; // Hướng dẫn/lưu ý cho học sinh khi chơi trò chơi
+  validationReport?: {
+    totalQuestions: number;
+    validCount: number;
+    errorCount: number;
+    issuesList?: string[];
+  };
 }
 
 export interface StudentSubmission {
