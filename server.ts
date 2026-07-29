@@ -11,6 +11,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Helper for lazy loading Gemini Client safely
 let aiClient: GoogleGenAI | null = null;
@@ -38,11 +39,10 @@ function getGeminiClient(): GoogleGenAI {
 async function generateContentWithRetry(ai: GoogleGenAI, params: { model: string; contents: any; config?: any }) {
   const modelsToTry = [
     params.model,
-    "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
-    "gemini-flash-latest",
-    "gemini-2.5-pro"
+    "gemini-1.5-pro",
+    "gemini-flash-latest"
   ];
   const uniqueModels = Array.from(new Set(modelsToTry)).filter(Boolean);
   
@@ -64,6 +64,12 @@ async function generateContentWithRetry(ai: GoogleGenAI, params: { model: string
         lastError = error;
         console.error(`[AI] Error with ${modelName} on attempt ${attempt + 1}:`, error.message || error);
         
+        // If model not found or invalid model string, break immediately to try next fallback model
+        if (error.status === 404 || error.message?.includes("404") || error.message?.includes("not found")) {
+          console.warn(`[AI] Model ${modelName} returned 404 (not found). Switching model...`);
+          break;
+        }
+
         const isTemporary = 
           error.message?.includes("503") || 
           error.message?.includes("UNAVAILABLE") ||
@@ -181,7 +187,7 @@ LƯU Ý QUAN TRỌNG:
 - Đảm bảo các công thức toán học dễ đọc. Tránh ký hiệu toán học quá phức tạp.`;
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       contents: userPrompt,
       config: {
         systemInstruction: systemInstruction,
@@ -300,7 +306,7 @@ Nhiệm vụ của bạn là tiếp nhận tài liệu/văn bản đề thi do g
     }
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       contents: contentsParam,
       config: {
         systemInstruction: systemInstruction,
@@ -416,7 +422,7 @@ Bạn PHẢI phản hồi bằng một đối tượng JSON duy nhất có dạn
 Hãy trả về chuỗi JSON thô, sạch sẽ.`;
 
     const response = await generateContentWithRetry(ai, {
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       contents: userPrompt,
       config: {
         systemInstruction: systemInstruction,
